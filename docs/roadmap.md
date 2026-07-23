@@ -19,11 +19,14 @@
 
 ## Phase 2：Language Server
 
-- [ ] 实时发布 Diagnostics
-- [ ] 工作区增量索引
-- [ ] Entity、字段、类型、注解和 op 补全
-- [ ] Hover 与 Signature Help
-- [ ] 跳转定义、查找引用和 Document Symbol
+- [x] 实时发布 Diagnostics
+- [x] 工作区增量索引
+- [x] Entity、类型、注解和声明补全
+- [x] Hover
+- [x] 跳转定义和 Document Symbol
+- [x] Server Stats 可观测性
+- [x] 缓存稳定性、性能与 JSON-RPC 端到端测试
+- [ ] Signature Help 与查找引用
 - [ ] 格式化
 
 ## Phase 3：工程体验

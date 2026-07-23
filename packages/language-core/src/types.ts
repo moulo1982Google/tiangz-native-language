@@ -82,7 +82,6 @@ export type DeclarationNode = EntityDeclarationNode | OperationDeclarationNode;
 
 export interface NativeDocument {
   readonly uri: string;
-  readonly text: string;
   readonly namespace?: NamespaceNode;
   readonly declarations: readonly DeclarationNode[];
   readonly diagnostics: readonly NativeDiagnostic[];
@@ -91,6 +90,11 @@ export interface NativeDocument {
 export interface NativeSource {
   readonly uri: string;
   readonly text: string;
+}
+
+export interface ParseNativeOptions {
+  readonly maxDiagnostics?: number;
+  readonly maxTokens?: number;
 }
 
 export interface NativeFieldModel {
@@ -138,4 +142,3 @@ export interface NativeWorkspaceAnalysis {
   readonly model: NativeSemanticModel;
   readonly diagnostics: readonly NativeDiagnostic[];
 }
-

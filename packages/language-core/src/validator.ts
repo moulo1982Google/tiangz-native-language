@@ -30,6 +30,10 @@ interface OperationEntry {
 
 export function analyzeNativeWorkspace(sources: readonly NativeSource[]): NativeWorkspaceAnalysis {
   const documents = sources.map((source) => parseNativeDocument(source.text, source.uri));
+  return analyzeNativeDocuments(documents);
+}
+
+export function analyzeNativeDocuments(documents: readonly NativeDocument[]): NativeWorkspaceAnalysis {
   const diagnostics: NativeDiagnostic[] = documents.flatMap((document) => [...document.diagnostics]);
   const entities: EntityEntry[] = [];
   const operations: OperationEntry[] = [];
@@ -55,6 +59,14 @@ export function analyzeNativeWorkspace(sources: readonly NativeSource[]): Native
 
 export function assertValidNativeWorkspace(sources: readonly NativeSource[]): NativeSemanticModel {
   const analysis = analyzeNativeWorkspace(sources);
+  if (analysis.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+    throw new NativeLanguageError(analysis.diagnostics);
+  }
+  return analysis.model;
+}
+
+export function assertValidNativeDocuments(documents: readonly NativeDocument[]): NativeSemanticModel {
+  const analysis = analyzeNativeDocuments(documents);
   if (analysis.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
     throw new NativeLanguageError(analysis.diagnostics);
   }

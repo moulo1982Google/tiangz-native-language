@@ -13,28 +13,46 @@ import type {
   ParameterDeclarationNode,
   SourceRange,
   TypeReferenceNode,
+  ParseNativeOptions,
 } from "./types.js";
 
-export function parseNativeDocument(text: string, uri = "<memory>"): NativeDocument {
-  const lexed = lexNativeDocument(text, uri);
-  const parser = new NativeParser(lexed.tokens, uri);
-  const parsed = parser.parse(text);
+export function parseNativeDocument(text: string, uri = "<memory>", options: ParseNativeOptions = {}): NativeDocument {
+  const maxDiagnostics = normalizeLimit(options.maxDiagnostics);
+  const lexed = lexNativeDocument(text, uri, options);
+  const parser = new NativeParser(lexed.tokens, uri, Math.max(0, maxDiagnostics - lexed.diagnostics.length));
+  const parsed = parser.parse();
+  const diagnostics = [...lexed.diagnostics, ...parsed.diagnostics];
+  if (lexed.truncated || parser.wasTruncated()) {
+    diagnostics.push({
+      uri,
+      code: "native.performance.parser-diagnostic-limit",
+      severity: "warning",
+      message: "Additional parser diagnostics were suppressed",
+      range: lexed.tokens.at(-1)!.range,
+    });
+  }
   return {
     ...parsed,
-    diagnostics: [...lexed.diagnostics, ...parsed.diagnostics],
+    diagnostics,
   };
 }
 
 class NativeParser {
   private readonly diagnostics: NativeDiagnostic[] = [];
   private index = 0;
+  private truncated = false;
 
   public constructor(
     private readonly tokens: readonly Token[],
     private readonly uri: string,
+    private readonly maxDiagnostics: number,
   ) {}
 
-  public parse(text: string): NativeDocument {
+  public wasTruncated(): boolean {
+    return this.truncated;
+  }
+
+  public parse(): NativeDocument {
     const namespace = this.parseNamespace();
     const declarations: DeclarationNode[] = [];
     while (!this.isEof()) {
@@ -68,7 +86,6 @@ class NativeParser {
 
     return {
       uri: this.uri,
-      text,
       ...(namespace ? { namespace } : {}),
       declarations,
       diagnostics: this.diagnostics,
@@ -243,7 +260,11 @@ class NativeParser {
   }
 
   private report(code: string, message: string, range: SourceRange): void {
-    this.diagnostics.push({ uri: this.uri, code, severity: "error", message, range });
+    if (this.diagnostics.length < this.maxDiagnostics) {
+      this.diagnostics.push({ uri: this.uri, code, severity: "error", message, range });
+    } else {
+      this.truncated = true;
+    }
   }
 
   private check(text: string): boolean {
@@ -283,3 +304,7 @@ function mergeRanges(start: SourceRange, end: SourceRange): SourceRange {
   return { start: start.start, end: end.end };
 }
 
+function normalizeLimit(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return Number.MAX_SAFE_INTEGER;
+  return Math.max(0, Math.trunc(value));
+}

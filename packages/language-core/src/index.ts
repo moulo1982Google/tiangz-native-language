@@ -1,7 +1,9 @@
 export { lexNativeDocument, type LexResult, type Token, type TokenKind } from "./lexer.js";
 export { parseNativeDocument } from "./parser.js";
 export {
+  analyzeNativeDocuments,
   analyzeNativeWorkspace,
+  assertValidNativeDocuments,
   assertValidNativeWorkspace,
   formatNativeDiagnostics,
   NativeLanguageError,
@@ -26,6 +28,7 @@ export type {
   NumberLiteralNode,
   OperationDeclarationNode,
   ParameterDeclarationNode,
+  ParseNativeOptions,
   SourcePosition,
   SourceRange,
   TypeReferenceNode,
@@ -33,4 +36,3 @@ export type {
 
 export const NATIVE_LANGUAGE_ID = "tiangz-native";
 export const NATIVE_LANGUAGE_VERSION = "0.1";
-

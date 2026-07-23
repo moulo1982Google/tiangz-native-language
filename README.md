@@ -14,8 +14,9 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - 带源码区间的 Lexer、Parser 和 AST
 - 单文件语法诊断与跨文件语义校验
 - 可供 codegen 与 Language Server 共用的 `@tiangz/native-language-core`
-
-VS Code 实时诊断、补全和定义跳转将在 Language Server 阶段接入。
+- 独立进程 Language Server
+- 实时诊断、补全、Hover、定义跳转和 Outline
+- 有界缓存、输入限制与性能回归测试
 
 TiangZ 主仓库当前固定依赖 `v0.2.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel`。
 
@@ -38,4 +39,4 @@ docs/                      语言规范、架构与路线图
 examples/                  示例 .native 文件
 ```
 
-详细语法见 [语言规范](docs/language-spec.md)，实施顺序见 [路线图](docs/roadmap.md)。
+详细语法见 [语言规范](docs/language-spec.md)，运行边界见 [性能与稳定性](docs/performance.md)，实施顺序见 [路线图](docs/roadmap.md)。

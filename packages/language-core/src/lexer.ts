@@ -1,4 +1,4 @@
-import type { NativeDiagnostic, SourcePosition, SourceRange } from "./types.js";
+import type { NativeDiagnostic, ParseNativeOptions, SourcePosition, SourceRange } from "./types.js";
 
 export type TokenKind = "identifier" | "number" | "symbol" | "eof";
 
@@ -11,13 +11,17 @@ export interface Token {
 export interface LexResult {
   readonly tokens: readonly Token[];
   readonly diagnostics: readonly NativeDiagnostic[];
+  readonly truncated: boolean;
 }
 
 const SYMBOLS = new Set(["@", "(", ")", "{", "}", ":", ";", ",", "[", "]", "="]);
 
-export function lexNativeDocument(text: string, uri: string): LexResult {
+export function lexNativeDocument(text: string, uri: string, options: ParseNativeOptions = {}): LexResult {
   const tokens: Token[] = [];
   const diagnostics: NativeDiagnostic[] = [];
+  const maxDiagnostics = normalizeLimit(options.maxDiagnostics);
+  const maxTokens = normalizeLimit(options.maxTokens);
+  let truncated = false;
   let offset = 0;
   let line = 0;
   let character = 0;
@@ -42,6 +46,17 @@ export function lexNativeDocument(text: string, uri: string): LexResult {
   };
 
   while (offset < text.length) {
+    if (tokens.length >= maxTokens) {
+      truncated = true;
+      pushDiagnostic({
+        uri,
+        code: "native.performance.token-limit",
+        severity: "warning",
+        message: `Token limit ${maxTokens} reached; remaining source was not parsed`,
+        range: { start: position(), end: position() },
+      });
+      break;
+    }
     const current = text[offset] ?? "";
     if (/\s/.test(current)) {
       advance();
@@ -78,7 +93,7 @@ export function lexNativeDocument(text: string, uri: string): LexResult {
     }
 
     advance();
-    diagnostics.push({
+    pushDiagnostic({
       uri,
       code: "native.lex.unexpected-character",
       severity: "error",
@@ -89,7 +104,12 @@ export function lexNativeDocument(text: string, uri: string): LexResult {
 
   const end = position();
   tokens.push({ kind: "eof", text: "", range: { start: end, end } });
-  return { tokens, diagnostics };
+  return { tokens, diagnostics, truncated };
+
+  function pushDiagnostic(diagnostic: NativeDiagnostic): void {
+    if (diagnostics.length < maxDiagnostics) diagnostics.push(diagnostic);
+    else truncated = true;
+  }
 }
 
 function isIdentifierStart(value: string): boolean {
@@ -113,3 +133,7 @@ function isNumberStart(text: string, offset: number): boolean {
   return isDigit(next) || (next === "." && isDigit(text[offset + 2] ?? ""));
 }
 
+function normalizeLimit(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return Number.MAX_SAFE_INTEGER;
+  return Math.max(0, Math.trunc(value));
+}

@@ -2,7 +2,15 @@
 
 为 TiangZ `.native` Entity 与 Native op 描述文件提供语言支持。
 
-当前版本包含文件识别、语法高亮、注释/括号配置和常用代码片段。实时诊断、补全、Hover 与跳转定义将在 Language Server 阶段加入。
+当前版本包含：
+
+- 文件识别、语法高亮、注释/括号配置和常用代码片段
+- 实时语法与跨文件语义诊断
+- 关键字、类型、注解和父 Entity 补全
+- Hover、定义跳转与 Outline
+- `TiangZ Native: Show Language Server Stats` 运行统计
+
+Language Server 在独立进程中运行，使用增量 AST 缓存、100ms 默认防抖、2MB 单文件上限和每文件 200 条诊断上限。
 
 ## 示例
 
@@ -18,4 +26,3 @@ entity Unit extends Entity {
 
 op EntityDestroy(handle: u32): void;
 ```
-

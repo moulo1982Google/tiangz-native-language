@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+## 0.3.0
+
 - TiangZ codegen 已固定依赖 `v0.2.0`，并移除生成器内部的正则 Parser 与重复 Validator。
+- 增加独立进程 Language Server。
+- 增加实时诊断、补全、Hover、定义跳转与 Document Symbol。
+- AST 不再保留完整源码副本，工作区只重解析变更 URI。
+- 增加验证防抖、文件大小上限、诊断数量上限和初始索引上限。
+- 增加 Server Stats 命令、缓存稳定性压力测试与 JSON-RPC 端到端测试。
 
 ## 0.2.0
 

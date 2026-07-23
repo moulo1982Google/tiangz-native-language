@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  analyzeNativeDocuments,
   analyzeNativeWorkspace,
   assertValidNativeWorkspace,
   NativeLanguageError,
+  lexNativeDocument,
   parseNativeDocument,
 } from "../dist/index.js";
 
@@ -117,3 +119,25 @@ test("throws one typed error containing all diagnostics", () => {
   );
 });
 
+test("validates cached AST documents without retaining source text", () => {
+  const documents = [
+    parseNativeDocument(entitySource, "Entity.native"),
+    parseNativeDocument("namespace native; op Ping(): void;", "Ops.native"),
+  ];
+  assert.equal("text" in documents[0], false);
+  const analysis = analyzeNativeDocuments(documents);
+  assert.equal(analysis.diagnostics.length, 0);
+  assert.equal(analysis.model.operations[0].name, "Ping");
+});
+
+test("bounds token and diagnostic allocation for hostile input", () => {
+  const text = `namespace demo; ${";?".repeat(10_000)}`;
+  const lexed = lexNativeDocument(text, "Hostile.native", { maxTokens: 50, maxDiagnostics: 10 });
+  assert.ok(lexed.tokens.length <= 51);
+  assert.ok(lexed.diagnostics.length <= 10);
+  assert.equal(lexed.truncated, true);
+
+  const document = parseNativeDocument(text, "Hostile.native", { maxTokens: 50, maxDiagnostics: 10 });
+  assert.ok(document.diagnostics.length <= 11);
+  assert.ok(document.diagnostics.some((diagnostic) => diagnostic.code === "native.performance.parser-diagnostic-limit"));
+});
