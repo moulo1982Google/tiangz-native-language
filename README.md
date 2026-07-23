@@ -17,6 +17,8 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
 VS Code 实时诊断、补全和定义跳转将在 Language Server 阶段接入。
 
+TiangZ 主仓库当前固定依赖 `v0.2.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel`。
+
 ## 本地安装
 
 ```powershell

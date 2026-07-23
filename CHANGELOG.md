@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- TiangZ codegen 已固定依赖 `v0.2.0`，并移除生成器内部的正则 Parser 与重复 Validator。
+
 ## 0.2.0
 
 - 增加带源码区间的 Lexer、Parser 和 AST。
