@@ -11,13 +11,17 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - 注释、括号和自动缩进
 - Entity、Component 与 Native op 代码片段
 - `.native` 0.1 语法及语义规范
+- 带源码区间的 Lexer、Parser 和 AST
+- 单文件语法诊断与跨文件语义校验
+- 可供 codegen 与 Language Server 共用的 `@tiangz/native-language-core`
 
-实时诊断、补全和定义跳转将在共享语言核心完成后接入。
+VS Code 实时诊断、补全和定义跳转将在 Language Server 阶段接入。
 
 ## 本地安装
 
 ```powershell
 npm install
+npm run check
 npm run package:extension
 ```
 
@@ -33,4 +37,3 @@ examples/                  示例 .native 文件
 ```
 
 详细语法见 [语言规范](docs/language-spec.md)，实施顺序见 [路线图](docs/roadmap.md)。
-

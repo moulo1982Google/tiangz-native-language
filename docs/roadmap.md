@@ -10,11 +10,11 @@
 
 ## Phase 1：共享语言核心
 
-- [ ] 实现带源码区间的 Lexer
-- [ ] 实现递归下降 Parser 和 AST
-- [ ] 实现单文件语法诊断
-- [ ] 实现跨文件 Entity、继承、typeId 和 op 校验
-- [ ] 建立 Parser 与 Validator 回归用例
+- [x] 实现带源码区间的 Lexer
+- [x] 实现递归下降 Parser 和 AST
+- [x] 实现单文件语法诊断
+- [x] 实现跨文件 Entity、继承、typeId 和 op 校验
+- [x] 建立 Parser 与 Validator 回归用例
 - [ ] 用 language-core 替换 TiangZ 生成器中的正则解析
 
 ## Phase 2：Language Server
@@ -40,4 +40,3 @@
 - [ ] Marketplace 图标、README、CHANGELOG 和隐私说明
 - [ ] CI 生成 VSIX
 - [ ] 发布 `1.0.0`
-

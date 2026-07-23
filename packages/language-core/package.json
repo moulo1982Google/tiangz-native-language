@@ -1,8 +1,0 @@
-{
-  "name": "@tiangz/native-language-core",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "description": "Shared parser, AST and validator for the TiangZ .native language"
-}
-

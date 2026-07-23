@@ -1,18 +1,36 @@
 {
-  "name": "tiangz-native-language-workspace",
-  "version": "0.1.0",
-  "private": true,
-  "description": "TiangZ .native language tooling workspace",
+  "name": "@tiangz/native-language-core",
+  "version": "0.2.0",
+  "description": "Shared parser, AST and validator for the TiangZ .native language",
+  "type": "module",
+  "main": "./packages/language-core/dist/index.js",
+  "types": "./packages/language-core/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./packages/language-core/dist/index.d.ts",
+      "import": "./packages/language-core/dist/index.js"
+    }
+  },
+  "files": [
+    "packages/language-core/dist/**",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "workspaces": [
-    "extension",
-    "packages/*"
+    "extension"
   ],
   "scripts": {
-    "check": "npm run check --workspace tiangz-native-language",
+    "build:core": "tsc -p packages/language-core/tsconfig.json",
+    "test:core": "npm run build:core && node --test packages/language-core/test/*.test.mjs",
+    "check": "npm run test:core && npm run check --workspace tiangz-native-language",
+    "prepare": "npm run build:core",
     "package:extension": "npm run package --workspace tiangz-native-language"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=20"
   }
 }
-
