@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.4.2
+
+- 将 VS Code 扩展发布者和包作者统一改为 `moulo`。
+
 ## 0.4.1
 
 - 增加 `tiangzNative.sourceRoots`，只将指定工作区目录作为权威 `.native` 源。
