@@ -4,6 +4,8 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
 仓库目标不是只给关键字上色，而是让 TiangZ codegen 与编辑器共用同一套 Parser、AST 和 Validator，避免两套语法实现发生偏差。
 
+当前发布策略：`v0.9.0` 仅作为 TiangZ 内部开发工具，通过本地 VSIX 安装。VS Code Marketplace、公开 CI 与 `1.0.0` 发布计划暂缓，详见[路线图](docs/roadmap.md)。
+
 ## 当前能力
 
 - VS Code 识别 `.native` 文件
