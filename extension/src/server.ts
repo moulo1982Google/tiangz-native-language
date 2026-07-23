@@ -3,12 +3,14 @@ import { fileURLToPath } from "node:url";
 
 import type {
   DeclarationNode,
+  EntityDeclarationNode,
   NativeDiagnostic,
   NativeDocument,
   SourceRange as NativeSourceRange,
 } from "../../packages/language-core/src/index.js";
-import { formatNativeDocument } from "../../packages/language-core/src/index.js";
+import { findNextAvailableTypeId, formatNativeDocument } from "../../packages/language-core/src/index.js";
 import {
+  CodeActionKind,
   CompletionItemKind,
   createConnection,
   DiagnosticSeverity,
@@ -20,6 +22,7 @@ import {
   TextDocumentSyncKind,
   TextDocuments,
   type CompletionItem,
+  type CodeAction,
   type Definition,
   type DocumentSymbol,
   type Hover,
@@ -69,6 +72,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       referencesProvider: true,
       documentSymbolProvider: true,
       documentFormattingProvider: true,
+      codeActionProvider: { codeActionKinds: [CodeActionKind.QuickFix] },
       signatureHelpProvider: { triggerCharacters: ["(", ","] },
       workspace: { workspaceFolders: { supported: true } },
     },
@@ -236,6 +240,65 @@ connection.onDocumentFormatting((params): TextEdit[] => {
     range: { start: { line: 0, character: 0 }, end: document.positionAt(text.length) },
     newText: formatted,
   }];
+});
+
+connection.onCodeAction((params): CodeAction[] => {
+  if (params.context.only && !params.context.only.includes(CodeActionKind.QuickFix)) return [];
+  const document = documents.get(params.textDocument.uri);
+  const nativeDocument = index.getDocument(params.textDocument.uri);
+  if (!document || !nativeDocument) return [];
+  if (nativeDocument.diagnostics.some((diagnostic) => diagnostic.severity === "error")) return [];
+
+  const relevantDiagnostics = params.context.diagnostics.filter(
+    (diagnostic) => diagnostic.code === "native.semantic.type-id-required",
+  );
+  if (relevantDiagnostics.length === 0) return [];
+
+  const allocation = findNextAvailableTypeId(index.getModel().entities.map((entity) => entity.typeId));
+  return relevantDiagnostics.flatMap((diagnostic): CodeAction[] => {
+    const entity = findEntityAt(nativeDocument, document.offsetAt(diagnostic.range.start));
+    if (!entity || entity.abstract || entity.annotations.some((annotation) => annotation.name.name === "typeId")) return [];
+
+    const title = `为 ${entity.name.name} 分配下一个可用 typeId`;
+    if (allocation.status === "duplicate") {
+      const preview = allocation.duplicateTypeIds.slice(0, 8).join(", ");
+      const suffix = allocation.duplicateTypeIds.length > 8 ? ", ..." : "";
+      return [{
+        title,
+        kind: CodeActionKind.QuickFix,
+        diagnostics: [diagnostic],
+        disabled: { reason: `工作区存在重复 typeId：${preview}${suffix}，请先解决冲突` },
+      }];
+    }
+    if (allocation.status === "exhausted") {
+      return [{
+        title,
+        kind: CodeActionKind.QuickFix,
+        diagnostics: [diagnostic],
+        disabled: { reason: "typeId 1..65535 已全部使用" },
+      }];
+    }
+
+    const position = toRange(entity.range).start;
+    const lineStartOffset = document.offsetAt({ line: position.line, character: 0 });
+    const prefix = document.getText().slice(lineStartOffset, entity.range.start.offset);
+    const indent = /^\s*/.exec(prefix)?.[0] ?? "";
+    const eol = document.getText().includes("\r\n") ? "\r\n" : "\n";
+    return [{
+      title: `添加 @typeId(${allocation.typeId})`,
+      kind: CodeActionKind.QuickFix,
+      diagnostics: [diagnostic],
+      isPreferred: true,
+      edit: {
+        changes: {
+          [params.textDocument.uri]: [{
+            range: { start: position, end: position },
+            newText: `@typeId(${allocation.typeId})${eol}${indent}`,
+          }],
+        },
+      },
+    }];
+  });
 });
 
 connection.onDocumentSymbol((params): DocumentSymbol[] => {
@@ -454,6 +517,13 @@ function findReferences(target: SymbolTarget, includeDeclaration: boolean): Loca
     seen.add(key);
     locations.push({ uri, range: toRange(range) });
   }
+}
+
+function findEntityAt(document: NativeDocument, offset: number): EntityDeclarationNode | undefined {
+  return document.declarations.find(
+    (declaration): declaration is EntityDeclarationNode => declaration.kind === "entity"
+      && containsOffset(declaration.name.range, offset),
+  );
 }
 
 function toDocumentSymbol(declaration: DeclarationNode): DocumentSymbol {

@@ -2,6 +2,12 @@ export { lexNativeDocument, type LexResult, type Token, type TokenKind } from ".
 export { formatNativeDocument } from "./formatter.js";
 export { parseNativeDocument } from "./parser.js";
 export {
+  findNextAvailableTypeId,
+  MAX_NATIVE_TYPE_ID,
+  MIN_NATIVE_TYPE_ID,
+  type NextTypeIdResult,
+} from "./typeId.js";
+export {
   analyzeNativeDocuments,
   analyzeNativeWorkspace,
   assertValidNativeDocuments,

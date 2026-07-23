@@ -26,6 +26,7 @@ test("serves diagnostics and language features over JSON-RPC", async () => {
     assert.equal(initialize.capabilities.hoverProvider, true);
     assert.equal(initialize.capabilities.referencesProvider, true);
     assert.equal(initialize.capabilities.documentFormattingProvider, true);
+    assert.deepEqual(initialize.capabilities.codeActionProvider.codeActionKinds, ["quickfix"]);
     assert.deepEqual(initialize.capabilities.signatureHelpProvider.triggerCharacters, ["(", ","]);
     rpc.notify("initialized", {});
 
@@ -126,6 +127,65 @@ entity Unit extends Entity {
     });
     assert.deepEqual(symbols.map((symbol) => symbol.name), ["Entity", "Unit"]);
 
+    const missingUri = "untitled:Missing.native";
+    const missingPublished = rpc.waitForNotification(
+      "textDocument/publishDiagnostics",
+      (params) => params.uri === missingUri
+        && params.diagnostics.some((diagnostic) => diagnostic.code === "native.semantic.type-id-required"),
+    );
+    rpc.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: missingUri,
+        languageId: "tiangz-native",
+        version: 1,
+        text: "namespace demo;\n@component\nentity Item extends Entity {}\n",
+      },
+    });
+    const missingDiagnostics = await missingPublished;
+    const missingTypeId = missingDiagnostics.diagnostics.find(
+      (diagnostic) => diagnostic.code === "native.semantic.type-id-required",
+    );
+    const quickFixes = await rpc.request("textDocument/codeAction", {
+      textDocument: { uri: missingUri },
+      range: missingTypeId.range,
+      context: { diagnostics: [missingTypeId], only: ["quickfix"] },
+    });
+    assert.equal(quickFixes.length, 1);
+    assert.equal(quickFixes[0].title, "添加 @typeId(2)");
+    assert.equal(quickFixes[0].isPreferred, true);
+    assert.equal(quickFixes[0].edit.changes[missingUri][0].newText, "@typeId(2)\n");
+
+    await closeUntitled(rpc, missingUri);
+
+    const conflictUri = "untitled:Conflict.native";
+    const conflictPublished = rpc.waitForNotification(
+      "textDocument/publishDiagnostics",
+      (params) => params.uri === conflictUri
+        && params.diagnostics.some((diagnostic) => diagnostic.code === "native.semantic.type-id-required"),
+    );
+    rpc.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: conflictUri,
+        languageId: "tiangz-native",
+        version: 1,
+        text: "namespace demo;\n@typeId(1)\nentity Other extends Entity {}\nentity Missing extends Entity {}\n",
+      },
+    });
+    const conflictDiagnostics = await conflictPublished;
+    const conflictMissingTypeId = conflictDiagnostics.diagnostics.find(
+      (diagnostic) => diagnostic.code === "native.semantic.type-id-required",
+    );
+    const disabledFixes = await rpc.request("textDocument/codeAction", {
+      textDocument: { uri: conflictUri },
+      range: conflictMissingTypeId.range,
+      context: { diagnostics: [conflictMissingTypeId], only: ["quickfix"] },
+    });
+    assert.equal(disabledFixes.length, 1);
+    assert.match(disabledFixes[0].disabled.reason, /重复 typeId：1/);
+    assert.equal(disabledFixes[0].edit, undefined);
+
+    await closeUntitled(rpc, conflictUri);
+
     const debouncedDiagnostics = rpc.waitForNotification(
       "textDocument/publishDiagnostics",
       (params) => params.uri === opsUri && params.diagnostics.length === 0,
@@ -152,6 +212,15 @@ entity Unit extends Entity {
     rpc.dispose();
   }
 });
+
+async function closeUntitled(rpc, uri) {
+  const cleared = rpc.waitForNotification(
+    "textDocument/publishDiagnostics",
+    (params) => params.uri === uri && params.diagnostics.length === 0,
+  );
+  rpc.notify("textDocument/didClose", { textDocument: { uri } });
+  await cleared;
+}
 
 class StdioRpc {
   #child;

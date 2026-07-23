@@ -6,6 +6,7 @@ import {
   analyzeNativeWorkspace,
   assertValidNativeWorkspace,
   formatNativeDocument,
+  findNextAvailableTypeId,
   NativeLanguageError,
   lexNativeDocument,
   parseNativeDocument,
@@ -48,6 +49,20 @@ op EntityDestroy(handle: u32): void;
     ],
   );
   assert.deepEqual(model.operations[0].params.map((parameter) => parameter.type), ["u32", "f64[]"]);
+});
+
+test("finds the smallest available typeId and rejects ambiguous workspaces", () => {
+  assert.deepEqual(findNextAvailableTypeId([1, 3, undefined]), { status: "available", typeId: 2 });
+  assert.deepEqual(findNextAvailableTypeId([1, 2, 2, 4, 4]), {
+    status: "duplicate",
+    duplicateTypeIds: [2, 4],
+  });
+  assert.deepEqual(
+    findNextAvailableTypeId((function* allTypeIds() {
+      for (let typeId = 1; typeId <= 0xffff; typeId += 1) yield typeId;
+    })()),
+    { status: "exhausted" },
+  );
 });
 
 test("formats valid documents without changing tokens or comments", () => {

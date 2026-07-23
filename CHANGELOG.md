@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.5.0
+
+- 为缺少 `@typeId` 的具体 Entity 增加首选 Quick Fix。
+- 从整个工作区分配最小可用 typeId，并优先填补编号空洞。
+- 工作区存在重复 typeId 时禁用自动分配并显示冲突编号。
+- 增加 typeId 耗尽、重复检测和 JSON-RPC Code Action 回归测试。
+
 ## 0.4.2
 
 - 将 VS Code 扩展发布者和包作者统一改为 `moulo`。

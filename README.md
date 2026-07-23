@@ -17,6 +17,7 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - 独立进程 Language Server
 - 实时诊断、补全、Hover、定义跳转、查找引用和 Outline
 - `@typeId`/Native op 签名提示与保留注释的安全格式化
+- 缺少 `@typeId` 时自动分配最小可用编号的 Quick Fix
 - 有界缓存、输入限制与性能回归测试
 
 TiangZ 主仓库当前固定依赖 `v0.2.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel`。
@@ -40,6 +41,8 @@ npm run package:extension
 ```
 
 路径相对于每个 VS Code 工作区目录；空数组保持扫描整个工作区。修改后需要重新加载 VS Code 窗口。
+
+当具体 Entity 缺少 `@typeId` 时，将光标放在错误位置并按 `Ctrl+.`，选择“添加 `@typeId(n)`”。操作只编辑当前文档，不会自动保存或执行 codegen；工作区存在重复编号时会先要求解决冲突。
 
 ## 仓库结构
 

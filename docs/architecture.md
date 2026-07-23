@@ -26,7 +26,9 @@ TextMate Grammar 负责打开文件时立即可用的基础高亮。Language Ser
 - Document Symbol
 - 保留注释的安全格式化
 
-格式化器属于 language-core。它只接受语法正确的输入，并在输出后重新执行 Lexer；只有格式化前后的 Token 类型与文本逐项一致时才返回新文本。Quick Fix 属于后续工程体验阶段，不进入格式化器的职责边界。
+格式化器属于 language-core。它只接受语法正确的输入，并在输出后重新执行 Lexer；只有格式化前后的 Token 类型与文本逐项一致时才返回新文本。Quick Fix 属于 Language Server 的工程体验层，不进入格式化器的职责边界。
+
+`@typeId` Quick Fix 只响应 Validator 产生的 `native.semantic.type-id-required` 诊断。编号规划由 language-core 完成，Language Server 只负责定位 Entity 并生成单文件 WorkspaceEdit；它不会保存文件或触发 codegen。
 
 扩展不直接复制 codegen 规则。所有诊断必须来自 language-core。
 

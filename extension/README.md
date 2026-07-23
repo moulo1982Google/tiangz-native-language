@@ -10,11 +10,14 @@
 - Hover、定义跳转、查找引用与 Outline
 - `@typeId`/Native op 签名提示
 - 保留注释、Token 等价校验的安全格式化
+- 缺少 `@typeId` 时自动分配最小可用编号的 Quick Fix
 - `TiangZ Native: Show Language Server Stats` 运行统计
 
 Language Server 在独立进程中运行，使用增量 AST 缓存、100ms 默认防抖、2MB 单文件上限和每文件 200 条诊断上限。
 
 可通过 `tiangzNative.sourceRoots` 指定工作区内权威 `.native` 目录，例如 `["native_data"]`。修改该配置后需要重新加载 VS Code 窗口。
+
+具体 Entity 缺少 `@typeId` 时，在诊断位置按 `Ctrl+.` 即可插入最小可用编号。Quick Fix 不保存文件，也不运行 codegen；存在重复编号时会禁用分配并显示冲突。
 
 ## 示例
 
