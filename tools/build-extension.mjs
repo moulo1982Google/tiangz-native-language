@@ -36,5 +36,9 @@ await Promise.all([
     entryPoints: [path.join(extensionRoot, "src", "workspaceIndex.ts")],
     outfile: path.join(outputRoot, "workspaceIndex.cjs"),
   }),
+  build({
+    ...common,
+    entryPoints: [path.join(extensionRoot, "src", "codegenCommand.ts")],
+    outfile: path.join(outputRoot, "codegenCommand.cjs"),
+  }),
 ]);
-

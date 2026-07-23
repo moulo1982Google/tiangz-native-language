@@ -11,6 +11,7 @@
 - `@typeId`/Native op 签名提示
 - 保留注释、Token 等价校验的安全格式化
 - 缺少 `@typeId` 时自动分配最小可用编号的 Quick Fix
+- 使用 VS Code Task 运行项目配置的 Native codegen
 - `TiangZ Native: Show Language Server Stats` 运行统计
 
 Language Server 在独立进程中运行，使用增量 AST 缓存、100ms 默认防抖、2MB 单文件上限和每文件 200 条诊断上限。
@@ -18,6 +19,8 @@ Language Server 在独立进程中运行，使用增量 AST 缓存、100ms 默�
 可通过 `tiangzNative.sourceRoots` 指定工作区内权威 `.native` 目录，例如 `["native_data"]`。修改该配置后需要重新加载 VS Code 窗口。
 
 具体 Entity 缺少 `@typeId` 时，在诊断位置按 `Ctrl+.` 即可插入最小可用编号。Quick Fix 不保存文件，也不运行 codegen；存在重复编号时会禁用分配并显示冲突。
+
+设置 `tiangzNative.codegenCommand` 后，可以从命令面板或 `.native` 编辑器右键菜单执行 `TiangZ Native: Run Codegen`。`tiangzNative.codegenWorkingDirectory` 是工作区内的相对目录，默认为 `.`。
 
 ## 示例
 

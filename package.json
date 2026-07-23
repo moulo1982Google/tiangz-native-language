@@ -1,6 +1,6 @@
 {
   "name": "@tiangz/native-language-core",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Shared parser, AST and validator for the TiangZ .native language",
   "author": "moulo",
   "type": "module",

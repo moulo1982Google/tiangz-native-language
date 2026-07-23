@@ -30,6 +30,8 @@ TextMate Grammar 负责打开文件时立即可用的基础高亮。Language Ser
 
 `@typeId` Quick Fix 只响应 Validator 产生的 `native.semantic.type-id-required` 诊断。编号规划由 language-core 完成，Language Server 只负责定位 Entity 并生成单文件 WorkspaceEdit；它不会保存文件或触发 codegen。
 
+codegen 命令属于 VS Code Extension Host，不进入 Language Server。扩展只解析受信任工作区中的项目配置、确认未保存文件，并创建一次性 VS Code Task；生成器进程、终端和退出状态由 VS Code Task 系统管理。
+
 扩展不直接复制 codegen 规则。所有诊断必须来自 language-core。
 
 ## TiangZ 集成

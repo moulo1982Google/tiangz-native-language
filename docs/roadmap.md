@@ -35,7 +35,7 @@
 - [x] Code Action：分配下一个可用 typeId
 - [ ] 显示生成后的 Rust/TS 符号名称
 - [x] 可配置 `.native` 搜索根目录
-- [ ] 可选的 codegen 命令入口
+- [x] 可选的 codegen 命令入口
 
 ## Phase 4：发布
 

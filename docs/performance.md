@@ -28,6 +28,8 @@ Language Server 不能阻塞 VS Code Extension Host，工作区增长与反复�
 
 文件关闭、删除、Server shutdown 和扩展 dispose 都有明确清理路径。Server 不创建周期定时器，只维护一个可替换的 debounce timer。
 
+codegen 不在 Extension Host 或 Language Server 中直接运行。扩展全程只注册一组任务结束监听器，并用单个执行句柄阻止重复任务；运行次数不会增加监听器或常驻缓存。
+
 ## 可观测性
 
 执行命令：
@@ -48,9 +50,9 @@ npm run test:server
 
 当前 Windows 本机基线：
 
-- 200 Entity 首次校验：约 `0.89ms`
-- 200 Entity 增量校验 p95：约 `0.40ms`
-- 同一 URI 替换 5000 次并 GC 后：缓存数不增长，heap 增长约 `1.14MB`
-- 完整 JSON-RPC 初始化、诊断、语言功能、typeId Code Action 及连续 1000 次编辑防抖：约 `307ms`
+- 200 Entity 首次校验：约 `1.02ms`
+- 200 Entity 增量校验 p95：约 `0.33ms`
+- 同一 URI 替换 5000 次并 GC 后：缓存数不增长，heap 增长约 `0.93MB`
+- 完整 JSON-RPC 初始化、诊断、语言功能、typeId Code Action 及连续 1000 次编辑防抖：约 `309ms`
 
 自动门槛使用更宽松的 `首次 < 1000ms`、`增量 p95 < 50ms`、`5000 次替换后 heap 增长 < 32MB`，避免不同 CI 机器产生误报，同时能拦截数量级回退和明显泄漏。

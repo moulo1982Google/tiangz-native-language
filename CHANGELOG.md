@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.6.0
+
+- 增加 `TiangZ Native: Run Codegen` 命令和 `.native` 编辑器右键入口。
+- 增加项目级 codegen 命令与工作目录配置。
+- 使用 VS Code Task 执行生成器，保留完整终端输出并防止并发重复运行。
+- 运行前检查工作区信任、工作目录边界和未保存的 `.native` 文件。
+- 增加配置规范化与工作目录越界回归测试。
+
 ## 0.5.0
 
 - 为缺少 `@typeId` 的具体 Entity 增加首选 Quick Fix。

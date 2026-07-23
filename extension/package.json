@@ -2,7 +2,7 @@
   "name": "tiangz-native-language",
   "displayName": "TiangZ Native Language",
   "description": "Language support for the TiangZ .native entity and native-op schema",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "moulo",
   "author": "moulo",
   "license": "MIT",
@@ -10,7 +10,8 @@
     "vscode": "^1.91.0"
   },
   "activationEvents": [
-    "onLanguage:tiangz-native"
+    "onLanguage:tiangz-native",
+    "onCommand:tiangzNative.runCodegen"
   ],
   "main": "./dist/extension.cjs",
   "categories": [
@@ -42,7 +43,7 @@
     "build": "node ../tools/build-extension.mjs",
     "check:package": "vsce ls --no-dependencies",
     "prepackage": "node -e \"require('node:fs').mkdirSync('../dist', { recursive: true })\"",
-    "package": "npm run build && vsce package --no-dependencies --out ../dist/tiangz-native-language-0.5.0.vsix"
+    "package": "npm run build && vsce package --no-dependencies --out ../dist/tiangz-native-language-0.6.0.vsix"
   },
   "devDependencies": {
     "@types/vscode": "^1.91.0",
@@ -82,8 +83,21 @@
       {
         "command": "tiangzNative.showServerStats",
         "title": "TiangZ Native: Show Language Server Stats"
+      },
+      {
+        "command": "tiangzNative.runCodegen",
+        "title": "TiangZ Native: Run Codegen"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "tiangzNative.runCodegen",
+          "when": "editorLangId == tiangz-native",
+          "group": "navigation@10"
+        }
+      ]
+    },
     "configuration": {
       "title": "TiangZ Native",
       "properties": {
@@ -122,6 +136,18 @@
             "type": "string"
           },
           "description": "Workspace-relative directories containing authoritative .native sources. Empty indexes the whole workspace. Reload VS Code after changing this setting."
+        },
+        "tiangzNative.codegenCommand": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Shell command run by TiangZ Native: Run Codegen. Empty disables codegen."
+        },
+        "tiangzNative.codegenWorkingDirectory": {
+          "type": "string",
+          "default": ".",
+          "scope": "resource",
+          "description": "Workspace-relative working directory used by the Native codegen task."
         }
       }
     }
