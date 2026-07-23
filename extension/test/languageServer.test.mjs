@@ -40,6 +40,7 @@ abstract entity Entity {
   readonly instanceId: u32;
 }
 @typeId(1)
+@component
 entity Unit extends Entity {
   value: u32 = 0;
 }
@@ -76,16 +77,16 @@ entity Unit extends Entity {
 
     const completion = await rpc.request("textDocument/completion", {
       textDocument: { uri: entityUri },
-      position: { line: 7, character: 9 },
+      position: { line: 8, character: 9 },
     });
     assert.ok(completion.some((item) => item.label === "u32"));
 
     const hover = await rpc.request("textDocument/hover", {
       textDocument: { uri: entityUri },
-      position: { line: 6, character: 8 },
+      position: { line: 7, character: 8 },
     });
     assert.match(hover.contents.value, /entity Unit extends Entity/);
-    assert.match(hover.contents.value, /### 实体 `Unit`/);
+    assert.match(hover.contents.value, /### Component 实体 `Unit`/);
     assert.match(hover.contents.value, /\*\*类型编号\*\*：`1`/);
     assert.match(hover.contents.value, /完整字段顺序.*`id`.*`instanceId`.*`value`/);
     assert.match(hover.contents.value, /实体数据实际保存在 Rust 侧/);
@@ -93,14 +94,16 @@ entity Unit extends Entity {
     assert.match(hover.contents.value, /NativeUnitRef/);
     assert.match(hover.contents.value, /app\/generated\/model\/native\/NativeUnitRef\.ts/);
     assert.match(hover.contents.value, /import \{ NativeUnitRef \} from "\.\.\/\.\.\/generated\/model\/native\/NativeUnitRef"/);
-    assert.match(hover.contents.value, /const unit = NativeUnitRef\.Create\(\{/);
+    assert.match(hover.contents.value, /const unit = owner\.AddComponent\(NativeUnitRef, \{/);
     assert.match(hover.contents.value, /value: 0, \/\/ 可省略，默认 0/);
     assert.match(hover.contents.value, /unit\.value \+= 1/);
-    assert.match(hover.contents.value, /unit\.Dispose\(\)/);
+    assert.match(hover.contents.value, /owner\.GetComponent\(NativeUnitRef\)/);
+    assert.match(hover.contents.value, /owner\.RemoveComponent\(NativeUnitRef\)/);
+    assert.doesNotMatch(hover.contents.value, /unit\.Dispose\(\)/);
 
     const fieldHover = await rpc.request("textDocument/hover", {
       textDocument: { uri: entityUri },
-      position: { line: 7, character: 3 },
+      position: { line: 8, character: 3 },
     });
     assert.match(fieldHover.contents.value, /UnitData\.value/);
     assert.match(fieldHover.contents.value, /UNIT_FIELD_VALUE/);
@@ -113,18 +116,18 @@ entity Unit extends Entity {
 
     const definition = await rpc.request("textDocument/definition", {
       textDocument: { uri: entityUri },
-      position: { line: 6, character: 22 },
+      position: { line: 7, character: 22 },
     });
     assert.equal(definition.uri, entityUri);
     assert.equal(definition.range.start.line, 1);
 
     const references = await rpc.request("textDocument/references", {
       textDocument: { uri: entityUri },
-      position: { line: 6, character: 22 },
+      position: { line: 7, character: 22 },
       context: { includeDeclaration: true },
     });
     assert.equal(references.length, 2);
-    assert.deepEqual(references.map((location) => location.range.start.line), [1, 6]);
+    assert.deepEqual(references.map((location) => location.range.start.line), [1, 7]);
 
     const typeIdSignature = await rpc.request("textDocument/signatureHelp", {
       textDocument: { uri: entityUri },

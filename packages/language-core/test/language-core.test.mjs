@@ -10,6 +10,7 @@ import {
   NativeLanguageError,
   lexNativeDocument,
   parseNativeDocument,
+  projectNativeEntityApi,
   projectNativeEntitySymbols,
   projectNativeFieldSymbols,
   projectNativeOperationSymbols,
@@ -74,6 +75,39 @@ test("projects the exact Rust and TypeScript generated symbol names", () => {
     rust: ["EntityData"],
     typeScript: [],
   });
+});
+
+test("projects inherited entity fields and lifecycle from one shared model", () => {
+  const model = assertValidNativeWorkspace([
+    { uri: "Entity.native", text: entitySource },
+    {
+      uri: "Numeric.native",
+      text: `namespace demo;
+@typeId(2)
+entity Numeric extends Entity {
+  currentHp: i32 = 100;
+}
+`,
+    },
+  ]);
+  const unit = model.entities.find((entity) => entity.name === "Unit");
+  const numeric = model.entities.find((entity) => entity.name === "Numeric");
+  assert.ok(unit);
+  assert.ok(numeric);
+
+  const unitApi = projectNativeEntityApi(model, unit);
+  assert.equal(unitApi.lifecycle, "component");
+  assert.equal(unitApi.fileName, "NativeUnitRef.ts");
+  assert.deepEqual(unitApi.fields[0].rustPath, ["entity", "id"]);
+  assert.equal(unitApi.fields[0].fieldId, 1);
+  assert.equal(unitApi.fields[3].rustFieldConstant, "UNIT_FIELD_X");
+  assert.equal(unitApi.fields[3].typeScriptFieldConstant, "NativeUnitField.X");
+
+  const numericApi = projectNativeEntityApi(model, numeric);
+  assert.equal(numericApi.lifecycle, "handle");
+  assert.equal(numericApi.fields[2].fieldId, 3);
+  assert.deepEqual(numericApi.fields[2].rustPath, ["current_hp"]);
+  assert.equal(numericApi.fields[2].rustFieldConstant, "NUMERIC_FIELD_CURRENT_HP");
 });
 
 test("finds the smallest available typeId and rejects ambiguous workspaces", () => {

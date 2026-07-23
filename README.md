@@ -4,7 +4,7 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
 仓库目标不是只给关键字上色，而是让 TiangZ codegen 与编辑器共用同一套 Parser、AST 和 Validator，避免两套语法实现发生偏差。
 
-当前发布策略：`v0.9.0` 仅作为 TiangZ 内部开发工具，通过本地 VSIX 安装。VS Code Marketplace、公开 CI 与 `1.0.0` 发布计划暂缓，详见[路线图](docs/roadmap.md)。
+当前发布策略：`v0.10.0` 仅作为 TiangZ 内部开发工具，通过本地 VSIX 安装。VS Code Marketplace、公开 CI 与 `1.0.0` 发布计划暂缓，详见[路线图](docs/roadmap.md)。
 
 ## 当前能力
 
@@ -16,6 +16,7 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - 带源码区间的 Lexer、Parser 和 AST
 - 单文件语法诊断与跨文件语义校验
 - 可供 codegen 与 Language Server 共用的 `@tiangz/native-language-core`
+- 不接触文件系统的 `@tiangz/native-language-core/codegen` 纯生成核心
 - 独立进程 Language Server
 - 实时诊断、补全、Hover、定义跳转、查找引用和 Outline
 - `@typeId`/Native op 签名提示与保留注释的安全格式化
@@ -23,10 +24,10 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - 通过 VS Code Task 运行项目自定义 codegen
 - 中文诊断、命令、设置说明和代码片段说明
 - Entity、字段和 Native op 的详细中文 Hover，包括真实 Rust/TypeScript 生成符号与访问链路
-- 具体 Entity 的 TypeScript import、`Create`、字段读写与 `Dispose` Hover 示例
+- 根据 `@component` 自动区分 Component 生命周期与独立 handle 生命周期的 Hover 示例
 - 有界缓存、输入限制与性能回归测试
 
-TiangZ 主仓库当前固定依赖 `v0.7.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel` 和 Rust/TypeScript 命名投影。
+TiangZ 主仓库固定依赖对应 Tag；`codegen_native_data` 只负责扫描、落盘和 `rustfmt`，全部 Rust/TypeScript 内容由共享 codegen-core 生成。
 
 ## 本地安装
 
@@ -74,13 +75,14 @@ npm run package:extension
 
 字段编号只用于跨 V8 边界定位字段，不会替代 Rust 结构体成员。
 
-将鼠标停在具体 Entity（例如 `Numeric`）上，还会根据完整继承字段生成一段 TypeScript 示例：从 `NativeNumericRef.ts` 导入、调用 `NativeNumericRef.Create(...)`、读写属性并在生命周期结束时调用 `Dispose()`。Hover 会显示 TiangZ 默认生成文件 `app/generated/model/native/NativeNumericRef.ts`；示例 import 的 `../../` 仅以 `app/demo/xxx` 下的业务文件为例，实际项目应按当前 TS 文件层级调整相对路径。
+将鼠标停在具体 Entity 上，还会根据完整继承字段生成 TypeScript 示例。普通 Entity 使用 `NativeXxxRef.Create(...)` / `Dispose()`；带 `@component` 的 Entity 使用父 Entity 的 `AddComponent` / `GetComponent` / `RemoveComponent`。Hover 会显示 TiangZ 默认生成文件；示例 import 的 `../../` 仅以 `app/demo/xxx` 下的业务文件为例，实际项目应按当前 TS 文件层级调整相对路径。
 
 ## 仓库结构
 
 ```text
 extension/                 VS Code 扩展
 packages/language-core/    Parser、AST、Validator 与工作区索引
+packages/codegen-core/     无文件系统依赖的 Rust/TypeScript 纯生成核心
 docs/                      语言规范、架构与路线图
 examples/                  示例 .native 文件
 ```

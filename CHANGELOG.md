@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.10.0
+
+- 新增 `@tiangz/native-language-core/codegen`，以纯函数生成 Rust、Host bootstrap 和 TypeScript 文件内容。
+- TiangZ 生成器可以缩减为源码扫描、输出路径校验、落盘和 `rustfmt` 薄适配层。
+- 新增共享 Entity API 投影，统一继承字段顺序、字段编号、生成名称和生命周期。
+- Hover 正确区分普通 Native handle 的 `Create/Dispose` 与 `@component` 的 `Add/Get/RemoveComponent`。
+- 增加 codegen-core 确定性、生命周期和可配置输出路径测试。
+
 ## 0.9.0
 
 - 具体 Entity Hover 根据完整继承字段自动生成 TypeScript import、`Create`、字段读写和 `Dispose` 示例。

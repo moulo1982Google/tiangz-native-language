@@ -8,9 +8,11 @@
     -> Parser
     -> AST
     -> Validator
-       |-> TiangZ codegen
+       |-> Entity API projection
        |-> Language Server diagnostics
        |-> completion / hover / navigation
+       -> codegen-core
+          -> Rust / Host bootstrap / TypeScript 文件内容
 ```
 
 `packages/language-core` 不依赖 VS Code，也不依赖 TiangZ 生成目标。它只负责语言本身：源码位置、Token、AST、诊断、跨文件符号索引和格式化模型。
@@ -32,16 +34,19 @@ TextMate Grammar 负责打开文件时立即可用的基础高亮。Language Ser
 
 codegen 命令属于 VS Code Extension Host，不进入 Language Server。扩展只解析受信任工作区中的项目配置、确认未保存文件，并创建一次性 VS Code Task；生成器进程、终端和退出状态由 VS Code Task 系统管理。
 
-Rust/TypeScript 生成符号的命名投影属于 language-core。Hover 与 TiangZ codegen 必须调用同一组 `projectNative*Symbols`、`toNative*Case` 和 `nativeRustOperationName` API，禁止分别维护字符串拼接规则。
+Rust/TypeScript 生成符号和 Entity API 的投影属于 language-core。Hover 与 codegen-core 必须调用同一组 `projectNative*Symbols`、`projectNativeEntityApi`、`toNative*Case` 和 `nativeRustOperationName` API，禁止分别维护字段顺序、生命周期或字符串拼接规则。
 
 扩展不直接复制 codegen 规则。所有诊断必须来自 language-core。
 
 ## TiangZ 集成
 
-TiangZ 的 `codegen_native_data` 最终只承担三件事：
+`packages/codegen-core` 是纯函数库：输入经过校验的 `NativeSemanticModel`，输出相对路径、文件内容及可选格式化类型。它不扫描目录、不写文件、不执行 `rustfmt`，因此可以被 TiangZ、测试工具和未来其他宿主复用。
+
+TiangZ 的 `codegen_native_data` 只承担四件事：
 
 1. 收集源文件。
-2. 调用 language-core 得到已校验 AST。
-3. 将 AST 投影为 Rust、Host bootstrap 和 TypeScript。
+2. 调用 language-core 得到已校验语义模型。
+3. 调用 codegen-core 获得生成文件。
+4. 校验输出路径、写盘并执行 `rustfmt`。
 
 这样编辑器显示通过的源文件，codegen 就应当以相同语义通过。

@@ -3,6 +3,7 @@ export { formatNativeDocument } from "./formatter.js";
 export { parseNativeDocument } from "./parser.js";
 export {
   nativeRustOperationName,
+  projectNativeEntityApi,
   projectNativeEntitySymbols,
   projectNativeFieldSymbols,
   projectNativeOperationSymbols,
@@ -11,6 +12,8 @@ export {
   toNativeScreamingSnakeCase,
   toNativeSnakeCase,
   type NativeGeneratedSymbols,
+  type NativeEntityApiProjection,
+  type NativeProjectedEntityField,
 } from "./projection.js";
 export {
   findNextAvailableTypeId,

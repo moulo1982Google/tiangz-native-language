@@ -9,12 +9,14 @@ import type {
   NativeEntityModel,
   NativeFieldModel,
   NativeGeneratedSymbols,
+  NativeProjectedEntityField,
   NativeOperationModel,
   SourceRange as NativeSourceRange,
 } from "../../packages/language-core/src/index.js";
 import {
   findNextAvailableTypeId,
   formatNativeDocument,
+  projectNativeEntityApi,
   projectNativeEntitySymbols,
   projectNativeFieldSymbols,
   projectNativeOperationSymbols,
@@ -495,7 +497,8 @@ function describeGlobal(word: string): string | undefined {
 function describeEntityModel(entity: NativeEntityModel, showSource = true): string {
   const parent = entity.parent ? ` extends ${entity.parent}` : "";
   const kind = entity.abstract ? "抽象实体" : entity.component ? "Component 实体" : "实体";
-  const flattenedFields = flattenEntityFields(entity);
+  const api = projectNativeEntityApi(index.getModel(), entity);
+  const flattenedFields = api.fields;
   const ownFieldCount = entity.fields.length;
   const inheritedFieldCount = Math.max(0, flattenedFields.length - ownFieldCount);
   const lines = [
@@ -513,7 +516,7 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
   }
   if (!entity.abstract) {
     lines.push("", "TS 侧持有 Native handle；实体数据实际保存在 Rust 侧。`typeId` 用于创建对应的 Rust 数据变体。");
-    appendEntityUsageExample(lines, entity, flattenedFields);
+    appendEntityUsageExample(lines, entity, api);
   } else {
     lines.push("", "抽象实体只生成 Rust 基础数据结构，不生成可独立创建的 TS handle。");
   }
@@ -523,11 +526,11 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
 }
 
 function describeFieldModel(entity: NativeEntityModel, field: NativeFieldModel, signature: string): string {
-  const flattenedFields = flattenEntityFields(entity);
-  const fieldIndex = flattenedFields.findIndex(
-    (entry) => entry.owner.name === entity.name && entry.field.name === field.name,
+  const api = projectNativeEntityApi(index.getModel(), entity);
+  const projectedField = api.fields.find(
+    (entry) => entry.ownerName === entity.name && entry.name === field.name,
   );
-  const fieldNumber = fieldIndex >= 0 ? fieldIndex + 1 : undefined;
+  const fieldNumber = projectedField?.fieldId;
   const symbols = projectNativeFieldSymbols(entity, field);
   const rustMember = symbols.rust[0];
   const fieldConstant = symbols.rust[1];
@@ -600,12 +603,13 @@ function appendGeneratedSymbols(lines: string[], symbols: NativeGeneratedSymbols
 function appendEntityUsageExample(
   lines: string[],
   entity: NativeEntityModel,
-  fields: readonly FlattenedNativeField[],
+  api: ReturnType<typeof projectNativeEntityApi>,
 ): void {
-  const refName = `Native${entity.name}Ref`;
+  const fields = api.fields;
+  const refName = api.refName;
   const variableName = toNativeCamelCase(entity.name);
-  const generatedFile = `app/generated/model/native/${refName}.ts`;
-  const writableField = fields.find((entry) => !entry.field.readonly)?.field;
+  const generatedFile = `app/generated/model/native/${api.fileName}`;
+  const writableField = fields.find((field) => !field.readonly);
   lines.push(
     "",
     "**TypeScript 使用示例**",
@@ -617,8 +621,10 @@ function appendEntityUsageExample(
     "```ts",
     `import { ${refName} } from \"../../generated/model/native/${refName}\";`,
     "",
-    `const ${variableName} = ${refName}.Create({`,
-    ...fields.map(({ field }) => {
+    api.lifecycle === "component"
+      ? `const ${variableName} = owner.AddComponent(${refName}, {`
+      : `const ${variableName} = ${refName}.Create({`,
+    ...fields.map((field) => {
       const comment = field.defaultValue === undefined ? "" : ` // 可省略，默认 ${field.defaultValue}`;
       return `  ${field.name}: ${exampleFieldValue(field)},${comment}`;
     }),
@@ -631,35 +637,31 @@ function appendEntityUsageExample(
       `const ${writableField.name} = ${variableName}.${writableField.name};`,
     );
   } else if (fields[0]) {
-    lines.push("", `const ${fields[0].field.name} = ${variableName}.${fields[0].field.name};`);
+    lines.push("", `const ${fields[0].name} = ${variableName}.${fields[0].name};`);
   }
-  lines.push("", `${variableName}.Dispose();`, "```");
+  if (api.lifecycle === "component") {
+    lines.push(
+      "",
+      `const same${entity.name} = owner.GetComponent(${refName});`,
+      `owner.RemoveComponent(${refName});`,
+      "```",
+      "",
+      "该类型标有 `@component`，Native handle 的创建和销毁由父 Entity 的 Component 生命周期管理；业务代码不直接调用 `Create()` 或 `Dispose()`。",
+    );
+  } else {
+    lines.push("", `${variableName}.Dispose();`, "```");
+  }
 }
 
-function exampleFieldValue(field: NativeFieldModel): string {
+function exampleFieldValue(field: Pick<NativeProjectedEntityField, "name" | "defaultValue">): string {
   if (field.defaultValue !== undefined) return field.defaultValue;
   if (field.name === "id" || field.name === "instanceId") return "1";
   return "0";
 }
 
-interface FlattenedNativeField {
-  readonly owner: NativeEntityModel;
-  readonly field: NativeFieldModel;
-}
-
-function flattenEntityFields(entity: NativeEntityModel, visited = new Set<string>()): FlattenedNativeField[] {
-  if (visited.has(entity.name)) return [];
-  visited.add(entity.name);
-  const parent = entity.parent
-    ? index.getModel().entities.find((candidate) => candidate.name === entity.parent)
-    : undefined;
-  const inherited = parent ? flattenEntityFields(parent, visited) : [];
-  return [...inherited, ...entity.fields.map((field) => ({ owner: entity, field }))];
-}
-
-function describeFieldOrder(fields: readonly FlattenedNativeField[]): string {
+function describeFieldOrder(fields: readonly NativeProjectedEntityField[]): string {
   const limit = 12;
-  const visible = fields.slice(0, limit).map((entry, index) => `${index + 1}. ${markdownCode(entry.field.name)}`);
+  const visible = fields.slice(0, limit).map((field) => `${field.fieldId}. ${markdownCode(field.name)}`);
   if (fields.length > limit) visible.push(`……另有 ${fields.length - limit} 个`);
   return visible.join("，");
 }

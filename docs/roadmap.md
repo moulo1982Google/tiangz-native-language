@@ -38,10 +38,12 @@
 - [x] 可选的 codegen 命令入口
 - [x] 中文诊断、命令、设置说明与详细 Hover
 - [x] 根据 schema 自动生成 Entity/字段 TypeScript 使用示例
+- [x] 抽取无文件系统依赖的 codegen-core，供 TiangZ 与工具链共享
+- [x] Hover 与生成器共用 Entity 字段顺序、生成名称和生命周期投影
 
 ## Phase 4：发布
 
-> 状态：暂停。当前 `v0.9.0` 作为 TiangZ 项目内部开发工具使用，通过本地 VSIX 安装，不发布到 VS Code Marketplace，也暂不推进公开发布所需的 CI、商店素材和 `1.0.0`。恢复 Phase 4 时再重新确认 Windows/Linux 验收矩阵、发布者认证和隐私说明。
+> 状态：暂停。当前 `v0.10.0` 作为 TiangZ 项目内部开发工具使用，通过本地 VSIX 安装，不发布到 VS Code Marketplace，也暂不推进公开发布所需的 CI、商店素材和 `1.0.0`。恢复 Phase 4 时再重新确认 Windows/Linux 验收矩阵、发布者认证和隐私说明。
 
 - [ ] Windows 与 Linux 扩展测试
 - [ ] Marketplace 图标、README、CHANGELOG 和隐私说明

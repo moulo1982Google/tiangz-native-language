@@ -1,6 +1,6 @@
 {
   "name": "@tiangz/native-language-core",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "TiangZ .native 语言共享的解析器、AST、校验器与代码生成命名投影",
   "author": "moulo",
   "type": "module",
@@ -10,10 +10,15 @@
     ".": {
       "types": "./packages/language-core/dist/index.d.ts",
       "import": "./packages/language-core/dist/index.js"
+    },
+    "./codegen": {
+      "types": "./packages/codegen-core/dist/index.d.ts",
+      "import": "./packages/codegen-core/dist/index.js"
     }
   },
   "files": [
     "packages/language-core/dist/**",
+    "packages/codegen-core/dist/**",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -23,11 +28,13 @@
   ],
   "scripts": {
     "build:core": "tsc -p packages/language-core/tsconfig.json",
+    "build:codegen": "tsc -p packages/codegen-core/tsconfig.json",
+    "build": "npm run build:core && npm run build:codegen",
     "build:extension": "npm run typecheck --workspace tiangz-native-language && npm run build --workspace tiangz-native-language",
-    "test:core": "npm run build:core && node --test packages/language-core/test/*.test.mjs",
+    "test:core": "npm run build && node --test packages/language-core/test/*.test.mjs packages/codegen-core/test/*.test.mjs",
     "test:server": "npm run build:extension && node --expose-gc --test extension/test/*.test.mjs",
     "check": "npm run test:core && npm run test:server && npm run check:package --workspace tiangz-native-language",
-    "prepare": "npm run build:core",
+    "prepare": "npm run build",
     "package:extension": "npm run package --workspace tiangz-native-language"
   },
   "devDependencies": {
