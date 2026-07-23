@@ -1,12 +1,12 @@
 {
-  "Namespace": {
+  "命名空间": {
     "prefix": "namespace",
     "body": [
       "namespace ${1:demo};"
     ],
-    "description": "Declare a TiangZ Native namespace"
+    "description": "声明 TiangZ Native 命名空间"
   },
-  "Entity": {
+  "实体": {
     "prefix": "entity",
     "body": [
       "@typeId(${1:1})",
@@ -14,9 +14,9 @@
       "  ${4:value}: ${5:u32} = ${6:0};",
       "}"
     ],
-    "description": "Declare a native entity"
+    "description": "声明 Native Entity"
   },
-  "Component Entity": {
+  "Component 实体": {
     "prefix": "component",
     "body": [
       "@typeId(${1:1})",
@@ -25,14 +25,13 @@
       "  ${4:value}: ${5:u32} = ${6:0};",
       "}"
     ],
-    "description": "Declare a native component entity"
+    "description": "声明 Native Component Entity"
   },
-  "Native Op": {
+  "Native 操作": {
     "prefix": "op",
     "body": [
       "op ${1:Operation}(${2:value}: ${3:u32}): ${4:void};"
     ],
-    "description": "Declare a native host operation"
+    "description": "声明 Native Host 操作"
   }
 }
-

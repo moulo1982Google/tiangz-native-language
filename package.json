@@ -1,7 +1,7 @@
 {
   "name": "@tiangz/native-language-core",
-  "version": "0.7.0",
-  "description": "Shared parser, AST and validator for the TiangZ .native language",
+  "version": "0.8.0",
+  "description": "TiangZ .native 语言共享的解析器、AST、校验器与代码生成命名投影",
   "author": "moulo",
   "type": "module",
   "main": "./packages/language-core/dist/index.js",

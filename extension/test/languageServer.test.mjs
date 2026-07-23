@@ -85,6 +85,10 @@ entity Unit extends Entity {
       position: { line: 6, character: 8 },
     });
     assert.match(hover.contents.value, /entity Unit extends Entity/);
+    assert.match(hover.contents.value, /### 实体 `Unit`/);
+    assert.match(hover.contents.value, /\*\*类型编号\*\*：`1`/);
+    assert.match(hover.contents.value, /完整字段顺序.*`id`.*`instanceId`.*`value`/);
+    assert.match(hover.contents.value, /实体数据实际保存在 Rust 侧/);
     assert.match(hover.contents.value, /UnitData/);
     assert.match(hover.contents.value, /NativeUnitRef/);
 
@@ -95,6 +99,9 @@ entity Unit extends Entity {
     assert.match(fieldHover.contents.value, /UnitData\.value/);
     assert.match(fieldHover.contents.value, /UNIT_FIELD_VALUE/);
     assert.match(fieldHover.contents.value, /NativeUnitRef\.value/);
+    assert.match(fieldHover.contents.value, /\*\*字段编号\*\*：`3`/);
+    assert.match(fieldHover.contents.value, /Rust 实际成员/);
+    assert.match(fieldHover.contents.value, /字段编号只负责跨 V8 边界定位/);
 
     const definition = await rpc.request("textDocument/definition", {
       textDocument: { uri: entityUri },
@@ -132,6 +139,8 @@ entity Unit extends Entity {
     assert.match(operationHover.contents.value, /op_native_ping/);
     assert.match(operationHover.contents.value, /NativeOps\.Ping/);
     assert.match(operationHover.contents.value, /NativeHostOpsApi\.ping/);
+    assert.match(operationHover.contents.value, /### Native 操作 `Ping`/);
+    assert.match(operationHover.contents.value, /调用链：TS 业务代码/);
 
     const formatting = await rpc.request("textDocument/formatting", {
       textDocument: { uri: opsUri },
@@ -163,6 +172,7 @@ entity Unit extends Entity {
     const missingTypeId = missingDiagnostics.diagnostics.find(
       (diagnostic) => diagnostic.code === "native.semantic.type-id-required",
     );
+    assert.match(missingTypeId.message, /必须声明 @typeId/);
     const quickFixes = await rpc.request("textDocument/codeAction", {
       textDocument: { uri: missingUri },
       range: missingTypeId.range,

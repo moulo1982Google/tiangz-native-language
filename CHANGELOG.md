@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.8.0
+
+- 将语法、语义和性能诊断消息统一为中文，保留稳定诊断码。
+- 将命令、弹窗、设置说明、Outline 和代码片段说明统一为中文。
+- Entity Hover 增加类别、命名空间、typeId、父实体、继承字段统计和完整字段顺序。
+- 字段 Hover 增加所属 Entity、可写性、默认值、字段编号、Rust 实际成员及 TS handle 访问说明。
+- Native op Hover 增加参数、返回类型以及 TS → Host → Rust 完整调用链。
+
 ## 0.7.0
 
 - Entity Hover 显示 Rust Data/enum/常量/accessor 与 TypeScript handle/args/field 符号。

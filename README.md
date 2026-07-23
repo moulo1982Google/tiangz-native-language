@@ -19,10 +19,11 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - `@typeId`/Native op 签名提示与保留注释的安全格式化
 - 缺少 `@typeId` 时自动分配最小可用编号的 Quick Fix
 - 通过 VS Code Task 运行项目自定义 codegen
-- 在 Entity、字段和 Native op Hover 中显示真实 Rust/TypeScript 生成符号
+- 中文诊断、命令、设置说明和代码片段说明
+- Entity、字段和 Native op 的详细中文 Hover，包括真实 Rust/TypeScript 生成符号与访问链路
 - 有界缓存、输入限制与性能回归测试
 
-TiangZ 主仓库当前固定依赖 `v0.2.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel`。
+TiangZ 主仓库当前固定依赖 `v0.7.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel` 和 Rust/TypeScript 命名投影。
 
 ## 本地安装
 
@@ -55,7 +56,20 @@ npm run package:extension
 }
 ```
 
-从命令面板执行 `TiangZ Native: Run Codegen`，或在 `.native` 编辑器中使用右键菜单。插件会检查未保存文件，并在专用 VS Code Task 终端中展示完整输出；工作目录必须位于所选工作区内部。
+从命令面板执行“TiangZ Native：运行代码生成”，或在 `.native` 编辑器中使用右键菜单。插件会检查未保存文件，并在专用 VS Code Task 终端中展示完整输出；工作目录必须位于所选工作区内部。
+
+## Hover 信息
+
+将鼠标停在 Entity、字段或 Native op 上即可查看详细信息，也可以将光标放在符号上后按 `Ctrl+K Ctrl+I`。
+
+例如字段 `currentHp` 的 Hover 会同时显示：
+
+- Rust 真正保存数据的结构体成员，例如 `NumericData.current_hp`
+- 跨 TS/Rust 通用访问接口使用的字段编号及常量，例如 `3` 和 `NUMERIC_FIELD_CURRENT_HP`
+- TS 句柄属性，例如 `NativeNumericRef.currentHp`
+- 实际调用方式，例如 `EntityGetNumber(handle, 3)` 与 `EntitySetNumber(handle, 3, value)`
+
+字段编号只用于跨 V8 边界定位字段，不会替代 Rust 结构体成员。
 
 ## 仓库结构
 

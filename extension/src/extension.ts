@@ -63,12 +63,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ...settings,
       sourceRootUris: resolveSourceRootUris(settings.sourceRoots),
     },
-    outputChannelName: "TiangZ Native Language Server",
+    outputChannelName: "TiangZ Native 语言服务器",
   };
 
   client = new LanguageClient(
     "tiangzNativeLanguageServer",
-    "TiangZ Native Language Server",
+    "TiangZ Native 语言服务器",
     serverOptions,
     clientOptions,
   );
@@ -78,8 +78,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(vscode.tasks.onDidEndTaskProcess((event) => {
     if (event.execution !== activeCodegenExecution) return;
     activeCodegenExecution = undefined;
-    if (event.exitCode === 0) void vscode.window.showInformationMessage("TiangZ Native codegen completed");
-    else void vscode.window.showErrorMessage(`TiangZ Native codegen failed with exit code ${event.exitCode ?? "unknown"}`);
+    if (event.exitCode === 0) void vscode.window.showInformationMessage("TiangZ Native 代码生成完成");
+    else void vscode.window.showErrorMessage(`TiangZ Native 代码生成失败，退出码：${event.exitCode ?? "未知"}`);
   }));
   context.subscriptions.push(vscode.tasks.onDidEndTask((event) => {
     if (event.execution === activeCodegenExecution) activeCodegenExecution = undefined;
@@ -94,7 +94,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   await client.start();
   void discoverWorkspaceFiles(client, settings).catch((error: unknown) => {
-    if (client) console.error("TiangZ Native workspace discovery failed", error);
+    if (client) console.error("TiangZ Native 工作区扫描失败", error);
   });
 }
 
@@ -122,7 +122,7 @@ async function discoverWorkspaceFiles(activeClient: LanguageClient, settings: Na
   await activeClient.sendNotification(INDEX_FILES_NOTIFICATION, discovered.map((file) => file.toString()));
   if (discovered.length === settings.initialFileLimit) {
     void vscode.window.showWarningMessage(
-      `TiangZ Native indexed the first ${settings.initialFileLimit} files. Increase tiangzNative.initialFileLimit if needed.`,
+      `TiangZ Native 只索引了前 ${settings.initialFileLimit} 个文件；如有需要，请增大 tiangzNative.initialFileLimit。`,
     );
   }
 }
@@ -132,19 +132,19 @@ async function showServerStats(): Promise<void> {
   const stats = await client.sendRequest<ServerStats>(SERVER_STATS_REQUEST);
   const heapMb = stats.heapUsedBytes / 1024 / 1024;
   void vscode.window.showInformationMessage(
-    `TiangZ Native: ${stats.cachedFiles} files, ${stats.entityCount} entities, `
-      + `${stats.operationCount} ops, last ${stats.lastValidationMs.toFixed(2)} ms, `
-      + `max ${stats.maxValidationMs.toFixed(2)} ms, heap ${heapMb.toFixed(1)} MB`,
+    `TiangZ Native：缓存 ${stats.cachedFiles} 个文件，${stats.entityCount} 个 Entity，`
+      + `${stats.operationCount} 个 op；最近校验 ${stats.lastValidationMs.toFixed(2)} ms，`
+      + `最大 ${stats.maxValidationMs.toFixed(2)} ms，堆内存 ${heapMb.toFixed(1)} MB`,
   );
 }
 
 async function runCodegen(): Promise<void> {
   if (!vscode.workspace.isTrusted) {
-    void vscode.window.showErrorMessage("Trust this workspace before running TiangZ Native codegen");
+    void vscode.window.showErrorMessage("运行 TiangZ Native 代码生成前，请先信任当前工作区");
     return;
   }
   if (activeCodegenExecution) {
-    void vscode.window.showWarningMessage("TiangZ Native codegen is already running");
+    void vscode.window.showWarningMessage("TiangZ Native 代码生成正在运行");
     return;
   }
 
@@ -156,20 +156,20 @@ async function runCodegen(): Promise<void> {
     configuration.get<unknown>("codegenWorkingDirectory", "."),
   );
   if (!codegen.command) {
-    void vscode.window.showErrorMessage("Configure tiangzNative.codegenCommand before running codegen");
+    void vscode.window.showErrorMessage("运行代码生成前，请先配置 tiangzNative.codegenCommand");
     return;
   }
 
   const workingDirectory = resolveCodegenWorkingDirectory(folder.uri.fsPath, codegen.workingDirectory);
   if (!workingDirectory) {
-    void vscode.window.showErrorMessage("tiangzNative.codegenWorkingDirectory must stay inside the workspace folder");
+    void vscode.window.showErrorMessage("tiangzNative.codegenWorkingDirectory 必须位于当前工作区内");
     return;
   }
   try {
     const metadata = await vscode.workspace.fs.stat(vscode.Uri.file(workingDirectory));
-    if ((metadata.type & vscode.FileType.Directory) === 0) throw new Error("path is not a directory");
+    if ((metadata.type & vscode.FileType.Directory) === 0) throw new Error("该路径不是目录");
   } catch (error) {
-    void vscode.window.showErrorMessage(`Invalid TiangZ Native codegen directory: ${errorMessage(error)}`);
+    void vscode.window.showErrorMessage(`无效的 TiangZ Native 代码生成目录：${errorMessage(error)}`);
     return;
   }
 
@@ -178,7 +178,7 @@ async function runCodegen(): Promise<void> {
   const task = new vscode.Task(
     { type: "tiangz-native-codegen" },
     folder,
-    "Native Codegen",
+    "Native 代码生成",
     "TiangZ Native",
     new vscode.ShellExecution(codegen.command, { cwd: workingDirectory }),
     [],
@@ -193,14 +193,14 @@ async function runCodegen(): Promise<void> {
   try {
     activeCodegenExecution = await vscode.tasks.executeTask(task);
   } catch (error) {
-    void vscode.window.showErrorMessage(`Failed to start TiangZ Native codegen: ${errorMessage(error)}`);
+    void vscode.window.showErrorMessage(`无法启动 TiangZ Native 代码生成：${errorMessage(error)}`);
   }
 }
 
 async function selectWorkspaceFolder(): Promise<vscode.WorkspaceFolder | undefined> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.length === 0) {
-    void vscode.window.showErrorMessage("Open a workspace folder before running TiangZ Native codegen");
+    void vscode.window.showErrorMessage("运行 TiangZ Native 代码生成前，请先打开工作区文件夹");
     return undefined;
   }
   const activeUri = vscode.window.activeTextEditor?.document.uri;
@@ -210,7 +210,7 @@ async function selectWorkspaceFolder(): Promise<vscode.WorkspaceFolder | undefin
 
   const selected = await vscode.window.showQuickPick(
     folders.map((folder) => ({ label: folder.name, description: folder.uri.fsPath, folder })),
-    { placeHolder: "Select the workspace folder that owns the Native schema" },
+    { placeHolder: "选择 Native schema 所属的工作区文件夹" },
   );
   return selected?.folder;
 }
@@ -222,16 +222,16 @@ async function confirmDirtyNativeDocuments(folder: vscode.WorkspaceFolder): Prom
   if (dirtyDocuments.length === 0) return true;
 
   const choice = await vscode.window.showWarningMessage(
-    `${dirtyDocuments.length} unsaved .native file(s) will not be visible to codegen`,
+    `有 ${dirtyDocuments.length} 个未保存的 .native 文件，代码生成将看不到其中的修改`,
     { modal: true },
-    "Save and Run",
-    "Run Without Saving",
+    "保存并运行",
+    "不保存直接运行",
   );
-  if (choice === "Run Without Saving") return true;
-  if (choice !== "Save and Run") return false;
+  if (choice === "不保存直接运行") return true;
+  if (choice !== "保存并运行") return false;
   const results = await Promise.all(dirtyDocuments.map((document) => document.save()));
   if (results.every(Boolean)) return true;
-  void vscode.window.showErrorMessage("Some .native files could not be saved; codegen was not started");
+  void vscode.window.showErrorMessage("部分 .native 文件无法保存，代码生成未启动");
   return false;
 }
 

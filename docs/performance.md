@@ -36,7 +36,7 @@ codegen 不在 Extension Host 或 Language Server 中直接运行。扩展全程
 执行命令：
 
 ```text
-TiangZ Native: Show Language Server Stats
+TiangZ Native：显示语言服务器状态
 ```
 
 可以查看缓存文件数、Entity/op 数、解析次数、校验次数、最近/最大校验耗时和 Server heap。

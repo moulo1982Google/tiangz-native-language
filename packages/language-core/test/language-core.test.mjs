@@ -124,6 +124,7 @@ entity Unit extends Entity {
   const fieldDiagnostic = document.diagnostics.find((diagnostic) => diagnostic.code === "native.parse.field-colon");
   assert.equal(fieldDiagnostic?.range.start.line, 2);
   assert.equal(fieldDiagnostic?.range.start.character, 4);
+  assert.match(fieldDiagnostic?.message ?? "", /字段名称后缺少/);
 });
 
 test("reports cross-file semantic errors from one validator", () => {
@@ -147,6 +148,8 @@ op Bad(value: f32): f32;
   assert.ok(codes.has("native.semantic.invalid-field-type"));
   assert.ok(codes.has("native.semantic.invalid-parameter-type"));
   assert.ok(codes.has("native.semantic.invalid-return-type"));
+  assert.ok(analysis.diagnostics.every((diagnostic) => !/Expected|Unsupported|Unknown|must extend/.test(diagnostic.message)));
+  assert.ok(analysis.diagnostics.some((diagnostic) => /找不到父 Entity/.test(diagnostic.message)));
 });
 
 test("rejects duplicate inherited fields and malformed annotations", () => {

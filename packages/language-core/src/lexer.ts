@@ -52,7 +52,7 @@ export function lexNativeDocument(text: string, uri: string, options: ParseNativ
         uri,
         code: "native.performance.token-limit",
         severity: "warning",
-        message: `Token limit ${maxTokens} reached; remaining source was not parsed`,
+        message: `Token 数量达到上限 ${maxTokens}，剩余源码未继续解析`,
         range: { start: position(), end: position() },
       });
       break;
@@ -97,7 +97,7 @@ export function lexNativeDocument(text: string, uri: string, options: ParseNativ
       uri,
       code: "native.lex.unexpected-character",
       severity: "error",
-      message: `Unexpected character ${JSON.stringify(current)}`,
+      message: `无法识别的字符 ${JSON.stringify(current)}`,
       range: { start, end: position() },
     });
   }

@@ -1,8 +1,8 @@
 {
   "name": "tiangz-native-language",
   "displayName": "TiangZ Native Language",
-  "description": "Language support for the TiangZ .native entity and native-op schema",
-  "version": "0.7.0",
+  "description": "为 TiangZ .native Entity 与 Native op schema 提供中文语言支持",
+  "version": "0.8.0",
   "publisher": "moulo",
   "author": "moulo",
   "license": "MIT",
@@ -43,7 +43,7 @@
     "build": "node ../tools/build-extension.mjs",
     "check:package": "vsce ls --no-dependencies",
     "prepackage": "node -e \"require('node:fs').mkdirSync('../dist', { recursive: true })\"",
-    "package": "npm run build && vsce package --no-dependencies --out ../dist/tiangz-native-language-0.7.0.vsix"
+    "package": "npm run build && vsce package --no-dependencies --out ../dist/tiangz-native-language-0.8.0.vsix"
   },
   "devDependencies": {
     "@types/vscode": "^1.91.0",
@@ -82,11 +82,11 @@
     "commands": [
       {
         "command": "tiangzNative.showServerStats",
-        "title": "TiangZ Native: Show Language Server Stats"
+        "title": "TiangZ Native：显示语言服务器状态"
       },
       {
         "command": "tiangzNative.runCodegen",
-        "title": "TiangZ Native: Run Codegen"
+        "title": "TiangZ Native：运行代码生成"
       }
     ],
     "menus": {
@@ -106,28 +106,28 @@
           "default": 100,
           "minimum": 20,
           "maximum": 2000,
-          "description": "Delay before validating changed .native files."
+          "description": ".native 文件发生修改后，延迟多少毫秒开始校验。"
         },
         "tiangzNative.maxFileSizeBytes": {
           "type": "number",
           "default": 2097152,
           "minimum": 65536,
           "maximum": 16777216,
-          "description": "Maximum .native file size parsed by the language server."
+          "description": "语言服务器允许解析的单个 .native 文件最大字节数。"
         },
         "tiangzNative.maxDiagnosticsPerFile": {
           "type": "number",
           "default": 200,
           "minimum": 10,
           "maximum": 2000,
-          "description": "Maximum diagnostics published for one file."
+          "description": "单个文件最多发布多少条诊断，避免错误风暴拖慢 Problems 面板。"
         },
         "tiangzNative.initialFileLimit": {
           "type": "number",
           "default": 10000,
           "minimum": 100,
           "maximum": 100000,
-          "description": "Maximum .native files indexed during workspace discovery."
+          "description": "扫描工作区时最多索引多少个 .native 文件。"
         },
         "tiangzNative.sourceRoots": {
           "type": "array",
@@ -135,19 +135,19 @@
           "items": {
             "type": "string"
           },
-          "description": "Workspace-relative directories containing authoritative .native sources. Empty indexes the whole workspace. Reload VS Code after changing this setting."
+          "description": "包含权威 .native 源码的工作区相对目录。留空时索引整个工作区；修改后请重新加载 VS Code 窗口。"
         },
         "tiangzNative.codegenCommand": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "Shell command run by TiangZ Native: Run Codegen. Empty disables codegen."
+          "description": "执行“TiangZ Native：运行代码生成”时使用的 Shell 命令。留空时禁用代码生成。"
         },
         "tiangzNative.codegenWorkingDirectory": {
           "type": "string",
           "default": ".",
           "scope": "resource",
-          "description": "Workspace-relative working directory used by the Native codegen task."
+          "description": "Native 代码生成任务使用的工作区相对工作目录。"
         }
       }
     }

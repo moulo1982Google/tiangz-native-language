@@ -96,7 +96,7 @@ export class NativeWorkspaceIndex {
         uri,
         code: "native.performance.file-too-large",
         severity: "warning",
-        message: `File size ${byteLength} bytes exceeds language server limit ${this.limits.maxFileSizeBytes} bytes`,
+        message: `文件大小 ${byteLength} 字节，超过语言服务器上限 ${this.limits.maxFileSizeBytes} 字节`,
         range: ZERO_RANGE,
       }],
     });
@@ -144,7 +144,7 @@ export class NativeWorkspaceIndex {
         uri,
         code: "native.performance.diagnostic-limit",
         severity: "warning",
-        message: `${omitted} additional diagnostics were suppressed`,
+        message: `另有 ${omitted} 条诊断已被抑制`,
         range: diagnostics.at(-1)?.range ?? ZERO_RANGE,
       });
     }

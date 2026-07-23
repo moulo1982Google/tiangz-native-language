@@ -7,7 +7,9 @@ import type {
   NativeDiagnostic,
   NativeDocument,
   NativeEntityModel,
+  NativeFieldModel,
   NativeGeneratedSymbols,
+  NativeOperationModel,
   SourceRange as NativeSourceRange,
 } from "../../packages/language-core/src/index.js";
 import {
@@ -88,7 +90,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 });
 
 connection.onInitialized(() => {
-  connection.console.log("TiangZ Native Language Server initialized");
+  connection.console.log("TiangZ Native 语言服务器已初始化");
 });
 
 connection.onDidChangeConfiguration((change) => {
@@ -199,8 +201,8 @@ connection.onSignatureHelp((params): SignatureHelp | null => {
     return {
       signatures: [{
         label: "@typeId(id: integer)",
-        documentation: "为 Entity 分配 1..65535 范围内、全局唯一的类型编号。",
-        parameters: [{ label: "id: integer", documentation: "全局唯一的 Entity typeId。" }],
+        documentation: "为具体 Entity 分配一个 1..65535 范围内、工作区全局唯一的类型编号。",
+        parameters: [{ label: "id: integer", documentation: "用于 Rust 存储和 TS 句柄创建的 Entity 类型编号。" }],
       }],
       activeSignature: 0,
       activeParameter: 0,
@@ -225,9 +227,9 @@ connection.onSignatureHelp((params): SignatureHelp | null => {
   }
   return {
     signatures: [{
-      label: `op ${operationName}(parameter: type, ...): returnType`,
-      documentation: "声明一个 Native op；参数格式为 name: type。",
-      parameters: [{ label: "parameter: type" }],
+      label: `op ${operationName}(参数名: 类型, ...): 返回类型`,
+      documentation: "声明一个从 TypeScript 调用 Rust Host 的 Native op；参数格式为 name: type。",
+      parameters: [{ label: "参数名: 类型" }],
     }],
     activeSignature: 0,
     activeParameter: 0,
@@ -363,7 +365,7 @@ async function loadFile(uri: string): Promise<void> {
   } catch (error) {
     const code = isRecord(error) && typeof error.code === "string" ? error.code : undefined;
     if (code === "ENOENT") index.delete(uri);
-    else connection.console.error(`Failed to read ${uri}: ${errorMessage(error)}`);
+    else connection.console.error(`读取 ${uri} 失败：${errorMessage(error)}`);
   }
 }
 
@@ -392,7 +394,7 @@ function publishValidation(): void {
   if (snapshot.stats.lastValidationMs >= SLOW_VALIDATION_MS && now - lastSlowLogAt >= SLOW_LOG_INTERVAL_MS) {
     lastSlowLogAt = now;
     connection.console.warn(
-      `Slow validation: ${snapshot.stats.lastValidationMs.toFixed(2)} ms for ${snapshot.stats.cachedFiles} files`,
+      `校验耗时较长：${snapshot.stats.cachedFiles} 个文件共 ${snapshot.stats.lastValidationMs.toFixed(2)} ms`,
     );
   }
 }
@@ -409,8 +411,8 @@ function toLspDiagnostic(diagnostic: NativeDiagnostic) {
 
 function annotationCompletions(): CompletionItem[] {
   return [
-    { label: "typeId", kind: CompletionItemKind.Property, insertText: "typeId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
-    { label: "component", kind: CompletionItemKind.Property },
+    { label: "typeId", detail: "为具体 Entity 分配全局唯一类型编号", kind: CompletionItemKind.Property, insertText: "typeId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
+    { label: "component", detail: "将 Entity 标记为 Component", kind: CompletionItemKind.Property },
   ];
 }
 
@@ -421,11 +423,11 @@ function typeCompletions(): CompletionItem[] {
 
 function declarationCompletions(): CompletionItem[] {
   return [
-    { label: "namespace", kind: CompletionItemKind.Keyword, insertText: "namespace ${1:demo};", insertTextFormat: InsertTextFormat.Snippet },
-    { label: "entity", kind: CompletionItemKind.Keyword },
-    { label: "abstract entity", kind: CompletionItemKind.Snippet, insertText: "abstract entity ${1:Entity} {\n  ${2}\n}", insertTextFormat: InsertTextFormat.Snippet },
-    { label: "op", kind: CompletionItemKind.Snippet, insertText: "op ${1:Operation}(${2}): ${3:void};", insertTextFormat: InsertTextFormat.Snippet },
-    { label: "readonly", kind: CompletionItemKind.Keyword },
+    { label: "namespace", detail: "声明当前文件的命名空间", kind: CompletionItemKind.Keyword, insertText: "namespace ${1:demo};", insertTextFormat: InsertTextFormat.Snippet },
+    { label: "entity", detail: "声明 Native Entity", kind: CompletionItemKind.Keyword },
+    { label: "abstract entity", detail: "声明不可直接创建的抽象 Entity", kind: CompletionItemKind.Snippet, insertText: "abstract entity ${1:Entity} {\n  ${2}\n}", insertTextFormat: InsertTextFormat.Snippet },
+    { label: "op", detail: "声明 TypeScript 调用 Rust Host 的 Native op", kind: CompletionItemKind.Snippet, insertText: "op ${1:Operation}(${2}): ${3:void};", insertTextFormat: InsertTextFormat.Snippet },
+    { label: "readonly", detail: "声明创建后不可通过通用 setter 修改的字段", kind: CompletionItemKind.Keyword },
   ];
 }
 
@@ -462,20 +464,19 @@ function describeNodeAt(document: NativeDocument, offset: number): string | unde
           const signature = `\`${modifier}${field.name.name}: ${field.type.name}${defaultValue}\``;
           const fieldModel = entity?.fields.find((candidate) => candidate.name === field.name.name);
           return entity && fieldModel
-            ? describeGeneratedSymbols(signature, projectNativeFieldSymbols(entity, fieldModel))
+            ? describeFieldModel(entity, fieldModel, signature)
             : signature;
         }
       }
       const parent = declaration.parent ? ` extends ${declaration.parent.name}` : "";
-      const signature = `\`${declaration.abstract ? "abstract " : ""}entity ${declaration.name.name}${parent}\``;
-      return entity ? describeGeneratedSymbols(signature, projectNativeEntitySymbols(entity)) : signature;
+      return entity ? describeEntityModel(entity, false) : `\`${declaration.abstract ? "abstract " : ""}entity ${declaration.name.name}${parent}\``;
     }
     const parameters = declaration.parameters.map((parameter) => `${parameter.name.name}: ${parameter.type.name}`).join(", ");
     const signature = `\`op ${declaration.name.name}(${parameters}): ${declaration.returnType.name}\``;
     const operation = index.getModel().operations.find(
       (candidate) => candidate.sourceFile === document.uri && candidate.name === declaration.name.name,
     );
-    return operation ? describeGeneratedSymbols(signature, projectNativeOperationSymbols(operation)) : signature;
+    return operation ? describeOperationModel(operation, false) : signature;
   }
   return undefined;
 }
@@ -485,24 +486,126 @@ function describeGlobal(word: string): string | undefined {
   if (entity) return describeEntityModel(entity);
   const operation = index.getModel().operations.find((candidate) => candidate.name === word);
   if (operation) {
-    const parameters = operation.params.map((parameter) => `${parameter.name}: ${parameter.type}`).join(", ");
-    const signature = `\`op ${operation.name}(${parameters}): ${operation.returnType}\`  \n${operation.sourceFile}`;
-    return describeGeneratedSymbols(signature, projectNativeOperationSymbols(operation));
+    return describeOperationModel(operation, true);
   }
   return undefined;
 }
 
-function describeEntityModel(entity: NativeEntityModel): string {
+function describeEntityModel(entity: NativeEntityModel, showSource = true): string {
   const parent = entity.parent ? ` extends ${entity.parent}` : "";
-  const signature = `\`${entity.abstract ? "abstract " : ""}entity ${entity.name}${parent}\`  \n${entity.sourceFile}`;
-  return describeGeneratedSymbols(signature, projectNativeEntitySymbols(entity));
+  const kind = entity.abstract ? "抽象实体" : entity.component ? "Component 实体" : "实体";
+  const flattenedFields = flattenEntityFields(entity);
+  const ownFieldCount = entity.fields.length;
+  const inheritedFieldCount = Math.max(0, flattenedFields.length - ownFieldCount);
+  const lines = [
+    `### ${kind} ${markdownCode(entity.name)}`,
+    "",
+    `\`${entity.abstract ? "abstract " : ""}entity ${entity.name}${parent}\``,
+    "",
+    `- **命名空间**：${markdownCode(entity.namespace || "（未声明）")}`,
+    `- **类型编号**：${entity.typeId === undefined ? "无（抽象实体不生成 typeId）" : markdownCode(String(entity.typeId))}`,
+    `- **父实体**：${entity.parent ? markdownCode(entity.parent) : "无"}`,
+    `- **字段**：本级 ${ownFieldCount} 个，继承 ${inheritedFieldCount} 个，共 ${flattenedFields.length} 个`,
+  ];
+  if (flattenedFields.length > 0) {
+    lines.push(`- **完整字段顺序**：${describeFieldOrder(flattenedFields)}`);
+  }
+  if (!entity.abstract) {
+    lines.push("", "TS 侧持有 Native handle；实体数据实际保存在 Rust 侧。`typeId` 用于创建对应的 Rust 数据变体。");
+  } else {
+    lines.push("", "抽象实体只生成 Rust 基础数据结构，不生成可独立创建的 TS handle。");
+  }
+  appendGeneratedSymbols(lines, projectNativeEntitySymbols(entity));
+  if (showSource) lines.push("", `**声明文件**：${markdownCode(entity.sourceFile)}`);
+  return lines.join("\n");
 }
 
-function describeGeneratedSymbols(signature: string, symbols: NativeGeneratedSymbols): string {
-  const lines = [signature, "", "**Generated symbols**"];
-  if (symbols.rust.length > 0) lines.push(`- Rust: ${symbols.rust.map(markdownCode).join(", ")}`);
-  if (symbols.typeScript.length > 0) lines.push(`- TypeScript: ${symbols.typeScript.map(markdownCode).join(", ")}`);
+function describeFieldModel(entity: NativeEntityModel, field: NativeFieldModel, signature: string): string {
+  const flattenedFields = flattenEntityFields(entity);
+  const fieldIndex = flattenedFields.findIndex(
+    (entry) => entry.owner.name === entity.name && entry.field.name === field.name,
+  );
+  const fieldNumber = fieldIndex >= 0 ? fieldIndex + 1 : undefined;
+  const symbols = projectNativeFieldSymbols(entity, field);
+  const rustMember = symbols.rust[0];
+  const fieldConstant = symbols.rust[1];
+  const tsProperty = symbols.typeScript[0];
+  const lines = [
+    `### 字段 ${markdownCode(field.name)}`,
+    "",
+    signature,
+    "",
+    `- **所属 Entity**：${markdownCode(entity.name)}`,
+    `- **数据类型**：${markdownCode(field.type)}`,
+    `- **可写性**：${field.readonly ? "只读，创建后不能通过通用 setter 修改" : "可读写"}`,
+    `- **默认值**：${field.defaultValue === undefined ? "未声明" : markdownCode(field.defaultValue)}`,
+    `- **字段编号**：${fieldNumber === undefined ? "无法计算" : markdownCode(String(fieldNumber))}${fieldConstant ? `（Rust 常量 ${markdownCode(fieldConstant)}）` : ""}`,
+    `- **Rust 实际成员**：${rustMember ? markdownCode(rustMember) : "未生成"}`,
+  ];
+  if (tsProperty && fieldNumber !== undefined) {
+    lines.push(
+      `- **TS 访问属性**：${markdownCode(tsProperty)}`,
+      "",
+      `TS 属性通过 \`NativeOps.EntityGetNumber(handle, ${fieldNumber})\`${field.readonly ? " 读取" : ` / \`EntitySetNumber(handle, ${fieldNumber}, value)\` 读写`}；字段编号只负责跨 V8 边界定位，数据仍保存在上面的 Rust 结构体成员中。`,
+    );
+  } else if (entity.abstract) {
+    lines.push("", "该字段属于抽象实体；具体子实体会继承它，并在各自的 TS handle 中生成访问属性。");
+  }
+  appendGeneratedSymbols(lines, symbols);
   return lines.join("\n");
+}
+
+function describeOperationModel(operation: NativeOperationModel, showSource: boolean): string {
+  const parameters = operation.params.map((parameter) => `${parameter.name}: ${parameter.type}`).join(", ");
+  const symbols = projectNativeOperationSymbols(operation);
+  const rustOperation = symbols.rust[0]!;
+  const tsFacade = symbols.typeScript[0]!;
+  const hostMethod = symbols.typeScript[1]!;
+  const lines = [
+    `### Native 操作 ${markdownCode(operation.name)}`,
+    "",
+    `\`op ${operation.name}(${parameters}): ${operation.returnType}\``,
+    "",
+    `- **命名空间**：${markdownCode(operation.namespace || "（未声明）")}`,
+    `- **参数数量**：${operation.params.length}`,
+    `- **返回类型**：${markdownCode(operation.returnType)}`,
+    `- **TS 调用入口**：${markdownCode(tsFacade)}`,
+    `- **Host 接口**：${markdownCode(hostMethod)}`,
+    `- **Rust 函数**：${markdownCode(rustOperation)}`,
+    "",
+    `调用链：TS 业务代码 → ${markdownCode(tsFacade)} → ${markdownCode(hostMethod)} → ${markdownCode(rustOperation)}。`,
+  ];
+  appendGeneratedSymbols(lines, symbols);
+  if (showSource) lines.push("", `**声明文件**：${markdownCode(operation.sourceFile)}`);
+  return lines.join("\n");
+}
+
+function appendGeneratedSymbols(lines: string[], symbols: NativeGeneratedSymbols): void {
+  lines.push("", "**生成符号**");
+  if (symbols.rust.length > 0) lines.push(`- **Rust**：${symbols.rust.map(markdownCode).join(", ")}`);
+  if (symbols.typeScript.length > 0) lines.push(`- **TypeScript**：${symbols.typeScript.map(markdownCode).join(", ")}`);
+}
+
+interface FlattenedNativeField {
+  readonly owner: NativeEntityModel;
+  readonly field: NativeFieldModel;
+}
+
+function flattenEntityFields(entity: NativeEntityModel, visited = new Set<string>()): FlattenedNativeField[] {
+  if (visited.has(entity.name)) return [];
+  visited.add(entity.name);
+  const parent = entity.parent
+    ? index.getModel().entities.find((candidate) => candidate.name === entity.parent)
+    : undefined;
+  const inherited = parent ? flattenEntityFields(parent, visited) : [];
+  return [...inherited, ...entity.fields.map((field) => ({ owner: entity, field }))];
+}
+
+function describeFieldOrder(fields: readonly FlattenedNativeField[]): string {
+  const limit = 12;
+  const visible = fields.slice(0, limit).map((entry, index) => `${index + 1}. ${markdownCode(entry.field.name)}`);
+  if (fields.length > limit) visible.push(`……另有 ${fields.length - limit} 个`);
+  return visible.join("，");
 }
 
 function markdownCode(value: string): string {
@@ -570,7 +673,7 @@ function toDocumentSymbol(declaration: DeclarationNode): DocumentSymbol {
   if (declaration.kind === "entity") {
     return {
       name: declaration.name.name,
-      detail: declaration.parent ? `extends ${declaration.parent.name}` : declaration.abstract ? "abstract entity" : "entity",
+      detail: declaration.parent ? `继承 ${declaration.parent.name}` : declaration.abstract ? "抽象实体" : "实体",
       kind: SymbolKind.Class,
       range: toRange(declaration.range),
       selectionRange: toRange(declaration.name.range),
@@ -585,7 +688,7 @@ function toDocumentSymbol(declaration: DeclarationNode): DocumentSymbol {
   }
   return {
     name: declaration.name.name,
-    detail: `returns ${declaration.returnType.name}`,
+    detail: `返回 ${declaration.returnType.name}`,
     kind: SymbolKind.Function,
     range: toRange(declaration.range),
     selectionRange: toRange(declaration.name.range),

@@ -104,7 +104,7 @@ function validateEntities(
           diagnostics,
           document.uri,
           "native.semantic.duplicate-entity",
-          `Entity ${node.name.name} is already declared in ${previous.document.uri}`,
+          `Entity ${node.name.name} 已在 ${previous.document.uri} 中声明`,
           node.name.range,
         );
       } else {
@@ -118,13 +118,13 @@ function validateEntities(
     const hasTypeId = hasAnnotation(node, "typeId");
     if (node.abstract) {
       if (hasTypeId) {
-        report(diagnostics, document.uri, "native.semantic.abstract-type-id", "An abstract entity cannot have @typeId", annotationRange(node, "typeId"));
+        report(diagnostics, document.uri, "native.semantic.abstract-type-id", "抽象 Entity 不能声明 @typeId", annotationRange(node, "typeId"));
       }
       if (hasAnnotation(node, "component")) {
-        report(diagnostics, document.uri, "native.semantic.abstract-component", "An abstract entity cannot be @component", annotationRange(node, "component"));
+        report(diagnostics, document.uri, "native.semantic.abstract-component", "抽象 Entity 不能标记为 @component", annotationRange(node, "component"));
       }
     } else if (!hasTypeId) {
-      report(diagnostics, document.uri, "native.semantic.type-id-required", `Concrete entity ${node.name.name} needs @typeId(1..65535)`, node.name.range);
+      report(diagnostics, document.uri, "native.semantic.type-id-required", `具体 Entity ${node.name.name} 必须声明 @typeId(1..65535)`, node.name.range);
     } else if (typeId !== undefined && typeId >= 1 && typeId <= 0xffff) {
       const previous = entityByTypeId.get(typeId);
       if (previous) {
@@ -132,7 +132,7 @@ function validateEntities(
           diagnostics,
           document.uri,
           "native.semantic.duplicate-type-id",
-          `@typeId(${typeId}) is already used by ${previous.node.name.name}`,
+          `@typeId(${typeId}) 已被 ${previous.node.name.name} 使用`,
           annotationRange(node, "typeId"),
         );
       } else {
@@ -149,25 +149,25 @@ function validateEntityAnnotations(entry: EntityEntry, diagnostics: NativeDiagno
     const name = annotation.name.name;
     const previous = seen.get(name);
     if (previous) {
-      report(diagnostics, entry.document.uri, "native.semantic.duplicate-annotation", `Duplicate @${name} annotation`, annotation.range);
+      report(diagnostics, entry.document.uri, "native.semantic.duplicate-annotation", `重复的 @${name} 注解`, annotation.range);
     } else {
       seen.set(name, annotation);
     }
     if (name === "typeId") {
       if (annotation.arguments.length !== 1 || !Number.isSafeInteger(annotation.arguments[0]?.value)) {
-        report(diagnostics, entry.document.uri, "native.semantic.invalid-type-id", "@typeId requires exactly one integer argument", annotation.range);
+        report(diagnostics, entry.document.uri, "native.semantic.invalid-type-id", "@typeId 必须且只能包含一个整数参数", annotation.range);
         continue;
       }
       const value = annotation.arguments[0]!.value;
       if (value < 1 || value > 0xffff) {
-        report(diagnostics, entry.document.uri, "native.semantic.type-id-range", "@typeId must be between 1 and 65535", annotation.arguments[0]!.range);
+        report(diagnostics, entry.document.uri, "native.semantic.type-id-range", "@typeId 必须在 1 到 65535 之间", annotation.arguments[0]!.range);
       }
     } else if (name === "component") {
       if (annotation.arguments.length !== 0) {
-        report(diagnostics, entry.document.uri, "native.semantic.component-arguments", "@component does not accept arguments", annotation.range);
+        report(diagnostics, entry.document.uri, "native.semantic.component-arguments", "@component 不接受参数", annotation.range);
       }
     } else if (name) {
-      report(diagnostics, entry.document.uri, "native.semantic.unknown-annotation", `Unknown annotation @${name}`, annotation.name.range);
+      report(diagnostics, entry.document.uri, "native.semantic.unknown-annotation", `未知注解 @${name}`, annotation.name.range);
     }
   }
 }
@@ -176,11 +176,11 @@ function validateEntityFields(entry: EntityEntry, diagnostics: NativeDiagnostic[
   const names = new Set<string>();
   for (const field of entry.node.fields) {
     if (field.name.name && names.has(field.name.name)) {
-      report(diagnostics, entry.document.uri, "native.semantic.duplicate-field", `Duplicate field ${field.name.name}`, field.name.range);
+      report(diagnostics, entry.document.uri, "native.semantic.duplicate-field", `字段 ${field.name.name} 重复声明`, field.name.range);
     }
     names.add(field.name.name);
     if (!ENTITY_FIELD_TYPES.has(field.type.name)) {
-      report(diagnostics, entry.document.uri, "native.semantic.invalid-field-type", `Unsupported entity field type ${field.type.name}`, field.type.range);
+      report(diagnostics, entry.document.uri, "native.semantic.invalid-field-type", `不支持的 Entity 字段类型 ${field.type.name}`, field.type.range);
       continue;
     }
     if (field.defaultValue) validateDefaultValue(entry.document.uri, field, diagnostics);
@@ -191,17 +191,17 @@ function validateDefaultValue(uri: string, field: FieldDeclarationNode, diagnost
   const literal = field.defaultValue!;
   const value = literal.value;
   if (!Number.isFinite(value)) {
-    report(diagnostics, uri, "native.semantic.non-finite-default", `Default value for ${field.name.name} must be finite`, literal.range);
+    report(diagnostics, uri, "native.semantic.non-finite-default", `字段 ${field.name.name} 的默认值必须是有限数值`, literal.range);
     return;
   }
   if (field.type.name === "f32") {
     if (Math.abs(value) > 3.4028234663852886e38) {
-      report(diagnostics, uri, "native.semantic.f32-range", `Default value for ${field.name.name} is outside f32`, literal.range);
+      report(diagnostics, uri, "native.semantic.f32-range", `字段 ${field.name.name} 的默认值超出 f32 范围`, literal.range);
     }
     return;
   }
   if (!Number.isInteger(value)) {
-    report(diagnostics, uri, "native.semantic.integer-default", `Default value for ${field.name.name} must be an integer`, literal.range);
+    report(diagnostics, uri, "native.semantic.integer-default", `字段 ${field.name.name} 的默认值必须是整数`, literal.range);
     return;
   }
   const ranges: Readonly<Record<string, readonly [number, number]>> = {
@@ -211,7 +211,7 @@ function validateDefaultValue(uri: string, field: FieldDeclarationNode, diagnost
   };
   const range = ranges[field.type.name];
   if (range && (value < range[0] || value > range[1])) {
-    report(diagnostics, uri, "native.semantic.integer-range", `Default value for ${field.name.name} is outside ${field.type.name}`, literal.range);
+    report(diagnostics, uri, "native.semantic.integer-range", `字段 ${field.name.name} 的默认值超出 ${field.type.name} 范围`, literal.range);
   }
 }
 
@@ -226,7 +226,7 @@ function validateOperations(operations: readonly OperationEntry[], diagnostics: 
           diagnostics,
           document.uri,
           "native.semantic.duplicate-operation",
-          `Native op ${node.name.name} is already declared in ${previous.document.uri}`,
+          `Native op ${node.name.name} 已在 ${previous.document.uri} 中声明`,
           node.name.range,
         );
       } else {
@@ -236,15 +236,15 @@ function validateOperations(operations: readonly OperationEntry[], diagnostics: 
     const parameterNames = new Set<string>();
     for (const parameter of node.parameters) {
       if (parameter.name.name && parameterNames.has(parameter.name.name)) {
-        report(diagnostics, document.uri, "native.semantic.duplicate-parameter", `Duplicate parameter ${parameter.name.name}`, parameter.name.range);
+        report(diagnostics, document.uri, "native.semantic.duplicate-parameter", `参数 ${parameter.name.name} 重复声明`, parameter.name.range);
       }
       parameterNames.add(parameter.name.name);
       if (!OP_PARAMETER_TYPES.has(parameter.type.name)) {
-        report(diagnostics, document.uri, "native.semantic.invalid-parameter-type", `Unsupported native op parameter type ${parameter.type.name}`, parameter.type.range);
+        report(diagnostics, document.uri, "native.semantic.invalid-parameter-type", `Native op 不支持参数类型 ${parameter.type.name}`, parameter.type.range);
       }
     }
     if (!OP_RETURN_TYPES.has(node.returnType.name)) {
-      report(diagnostics, document.uri, "native.semantic.invalid-return-type", `Unsupported native op return type ${node.returnType.name}`, node.returnType.range);
+      report(diagnostics, document.uri, "native.semantic.invalid-return-type", `Native op 不支持返回类型 ${node.returnType.name}`, node.returnType.range);
     }
   }
 }
@@ -264,9 +264,9 @@ function validateInheritance(
     if (parentName) {
       const parent = entityByName.get(parentName);
       if (!parent) {
-        report(diagnostics, entry.document.uri, "native.semantic.unknown-parent", `Unknown parent entity ${parentName}`, entry.node.parent!.range);
+        report(diagnostics, entry.document.uri, "native.semantic.unknown-parent", `找不到父 Entity ${parentName}`, entry.node.parent!.range);
       } else if (states.get(parentName) === "visiting") {
-        report(diagnostics, entry.document.uri, "native.semantic.inheritance-cycle", `Inheritance cycle through ${parentName}`, entry.node.parent!.range);
+        report(diagnostics, entry.document.uri, "native.semantic.inheritance-cycle", `继承链在 ${parentName} 处形成循环`, entry.node.parent!.range);
       } else {
         visit(parent);
       }
@@ -277,7 +277,7 @@ function validateInheritance(
 
   for (const entry of entities) {
     if (!entry.node.abstract && entry.node.name.name !== "Entity" && !inheritsFrom(entry, "Entity", entityByName)) {
-      report(diagnostics, entry.document.uri, "native.semantic.entity-base", `Concrete entity ${entry.node.name.name} must extend Entity`, entry.node.name.range);
+      report(diagnostics, entry.document.uri, "native.semantic.entity-base", `具体 Entity ${entry.node.name.name} 必须继承 Entity`, entry.node.name.range);
     }
     validateInheritedFields(entry, entityByName, diagnostics);
   }
@@ -304,7 +304,7 @@ function validateInheritedFields(
   }
   for (const field of entry.node.fields) {
     if (names.has(field.name.name)) {
-      report(diagnostics, entry.document.uri, "native.semantic.inherited-field", `Field ${field.name.name} duplicates an inherited field`, field.name.range);
+      report(diagnostics, entry.document.uri, "native.semantic.inherited-field", `字段 ${field.name.name} 与继承字段重名`, field.name.range);
     }
     names.add(field.name.name);
   }
@@ -318,16 +318,16 @@ function validateEntityRoot(
   const root = entityByName.get("Entity");
   if (!root) {
     const document = documents[0];
-    if (document) report(diagnostics, document.uri, "native.semantic.entity-root-required", "Native schema needs abstract entity Entity", firstRange(document));
+    if (document) report(diagnostics, document.uri, "native.semantic.entity-root-required", "Native schema 必须包含抽象根实体 Entity", firstRange(document));
     return;
   }
   if (!root.node.abstract) {
-    report(diagnostics, root.document.uri, "native.semantic.entity-root-abstract", "Entity must be abstract", root.node.name.range);
+    report(diagnostics, root.document.uri, "native.semantic.entity-root-abstract", "根实体 Entity 必须声明为 abstract", root.node.name.range);
   }
   for (const requiredName of ["id", "instanceId"]) {
     const field = root.node.fields.find((candidate) => candidate.name.name === requiredName);
     if (!field || field.type.name !== "u32" || !field.readonly) {
-      report(diagnostics, root.document.uri, "native.semantic.entity-root-field", `Entity.${requiredName} must be readonly u32`, field?.range ?? root.node.range);
+      report(diagnostics, root.document.uri, "native.semantic.entity-root-field", `Entity.${requiredName} 必须是 readonly u32`, field?.range ?? root.node.range);
     }
   }
 }
