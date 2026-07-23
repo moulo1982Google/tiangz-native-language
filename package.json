@@ -1,6 +1,6 @@
 {
   "name": "@tiangz/native-language-core",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Shared parser, AST and validator for the TiangZ .native language",
   "type": "module",
   "main": "./packages/language-core/dist/index.js",

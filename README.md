@@ -15,7 +15,8 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - 单文件语法诊断与跨文件语义校验
 - 可供 codegen 与 Language Server 共用的 `@tiangz/native-language-core`
 - 独立进程 Language Server
-- 实时诊断、补全、Hover、定义跳转和 Outline
+- 实时诊断、补全、Hover、定义跳转、查找引用和 Outline
+- `@typeId`/Native op 签名提示与保留注释的安全格式化
 - 有界缓存、输入限制与性能回归测试
 
 TiangZ 主仓库当前固定依赖 `v0.2.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel`。
@@ -28,7 +29,7 @@ npm run check
 npm run package:extension
 ```
 
-生成的 VSIX 位于 `dist/`，可以通过 VS Code 的“从 VSIX 安装”进行测试。
+生成的 VSIX 位于 `dist/`，可以通过 VS Code 的“从 VSIX 安装”进行测试。格式化可使用 VS Code 的“格式化文档”命令；存在语法错误时，格式化器会保留原文。
 
 ## 仓库结构
 

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.4.0
+
+- 增加保留注释的安全格式化；格式化前后 Token 不一致时拒绝修改。
+- 增加按 Entity/op 符号类型区分的查找引用，避免同名符号串联。
+- 增加 `@typeId(...)` 与 `op Name(...)` 声明上下文的 Signature Help。
+- 扩展 Language Server JSON-RPC 端到端测试，覆盖格式化、引用与签名提示。
+
 ## 0.3.0
 
 - TiangZ codegen 已固定依赖 `v0.2.0`，并移除生成器内部的正则 Parser 与重复 Validator。

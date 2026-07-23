@@ -8,6 +8,9 @@
 
 ```ts
 parseNativeDocument(text, uri);
+formatNativeDocument(text);
 analyzeNativeWorkspace(sources);
 assertValidNativeWorkspace(sources);
 ```
+
+`formatNativeDocument` 只格式化语法正确的文档，并在返回前验证 Token 序列完全一致；无法确认安全时原样返回输入。

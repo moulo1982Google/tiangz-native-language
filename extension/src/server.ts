@@ -7,6 +7,7 @@ import type {
   NativeDocument,
   SourceRange as NativeSourceRange,
 } from "../../packages/language-core/src/index.js";
+import { formatNativeDocument } from "../../packages/language-core/src/index.js";
 import {
   CompletionItemKind,
   createConnection,
@@ -27,10 +28,12 @@ import {
   type Location,
   type Position,
   type Range,
+  type SignatureHelp,
+  type TextEdit,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 
-import { NativeWorkspaceIndex, type WorkspaceLimits } from "./workspaceIndex.js";
+import { MAX_TOKENS_PER_FILE, NativeWorkspaceIndex, type WorkspaceLimits } from "./workspaceIndex.js";
 
 const INDEX_FILES_NOTIFICATION = "tiangzNative/indexFiles";
 const SERVER_STATS_REQUEST = "tiangzNative/serverStats";
@@ -61,7 +64,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       completionProvider: { triggerCharacters: ["@", ":"] },
       hoverProvider: true,
       definitionProvider: true,
+      referencesProvider: true,
       documentSymbolProvider: true,
+      documentFormattingProvider: true,
+      signatureHelpProvider: { triggerCharacters: ["(", ","] },
       workspace: { workspaceFolders: { supported: true } },
     },
   };
@@ -144,7 +150,82 @@ connection.onDefinition((params): Definition | null => {
   if (!document) return null;
   const word = wordAt(document, params.position);
   if (!word) return null;
-  return findDefinition(word);
+  const nativeDocument = index.getDocument(params.textDocument.uri);
+  const target = nativeDocument ? symbolAt(nativeDocument, document.offsetAt(params.position), word) : undefined;
+  return target ? findDefinition(target) : null;
+});
+
+connection.onReferences((params): Location[] => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  const word = wordAt(document, params.position);
+  if (!word) return [];
+  const nativeDocument = index.getDocument(params.textDocument.uri);
+  const target = nativeDocument ? symbolAt(nativeDocument, document.offsetAt(params.position), word) : undefined;
+  if (!target || !findDefinition(target)) return [];
+  return findReferences(target, params.context.includeDeclaration);
+});
+
+connection.onSignatureHelp((params): SignatureHelp | null => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return null;
+  const linePrefix = document.getText({
+    start: { line: params.position.line, character: 0 },
+    end: params.position,
+  });
+  if (/@typeId\s*\([^)]*$/.test(linePrefix)) {
+    return {
+      signatures: [{
+        label: "@typeId(id: integer)",
+        documentation: "为 Entity 分配 1..65535 范围内、全局唯一的类型编号。",
+        parameters: [{ label: "id: integer", documentation: "全局唯一的 Entity typeId。" }],
+      }],
+      activeSignature: 0,
+      activeParameter: 0,
+    };
+  }
+
+  const operationMatch = /\bop\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)$/.exec(linePrefix);
+  if (!operationMatch) return null;
+  const operationName = operationMatch[1]!;
+  const activeParameter = (operationMatch[2]!.match(/,/g) ?? []).length;
+  const operation = index.getModel().operations.find((candidate) => candidate.name === operationName);
+  if (operation) {
+    const parameters = operation.params.map((parameter) => `${parameter.name}: ${parameter.type}`);
+    return {
+      signatures: [{
+        label: `op ${operation.name}(${parameters.join(", ")}): ${operation.returnType}`,
+        parameters: parameters.map((label) => ({ label })),
+      }],
+      activeSignature: 0,
+      activeParameter: Math.min(activeParameter, Math.max(0, parameters.length - 1)),
+    };
+  }
+  return {
+    signatures: [{
+      label: `op ${operationName}(parameter: type, ...): returnType`,
+      documentation: "声明一个 Native op；参数格式为 name: type。",
+      parameters: [{ label: "parameter: type" }],
+    }],
+    activeSignature: 0,
+    activeParameter: 0,
+  };
+});
+
+connection.onDocumentFormatting((params): TextEdit[] => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) return [];
+  const text = document.getText();
+  if (Buffer.byteLength(text, "utf8") > settings.maxFileSizeBytes) return [];
+  const formatted = formatNativeDocument(text, {
+    maxDiagnostics: settings.maxDiagnosticsPerFile + 1,
+    maxTokens: MAX_TOKENS_PER_FILE,
+  });
+  if (formatted === text) return [];
+  return [{
+    range: { start: { line: 0, character: 0 }, end: document.positionAt(text.length) },
+    newText: formatted,
+  }];
 });
 
 connection.onDocumentSymbol((params): DocumentSymbol[] => {
@@ -315,15 +396,54 @@ function describeGlobal(word: string): string | undefined {
   return undefined;
 }
 
-function findDefinition(word: string): Definition | null {
+type SymbolTarget = Readonly<{ kind: "entity" | "operation"; name: string }>;
+
+function symbolAt(document: NativeDocument, offset: number, word: string): SymbolTarget | undefined {
+  for (const declaration of document.declarations) {
+    if (declaration.name.name === word && containsOffset(declaration.name.range, offset)) {
+      return { kind: declaration.kind, name: word };
+    }
+    if (declaration.kind === "entity"
+      && declaration.parent?.name === word
+      && containsOffset(declaration.parent.range, offset)) {
+      return { kind: "entity", name: word };
+    }
+  }
+  return undefined;
+}
+
+function findDefinition(target: SymbolTarget): Definition | null {
   for (const document of index.getDocuments()) {
     for (const declaration of document.declarations) {
-      if (declaration.name.name === word) {
+      if (declaration.kind === target.kind && declaration.name.name === target.name) {
         return { uri: document.uri, range: toRange(declaration.name.range) } satisfies Location;
       }
     }
   }
   return null;
+}
+
+function findReferences(target: SymbolTarget, includeDeclaration: boolean): Location[] {
+  const locations: Location[] = [];
+  const seen = new Set<string>();
+  for (const document of index.getDocuments()) {
+    for (const declaration of document.declarations) {
+      if (includeDeclaration && declaration.kind === target.kind && declaration.name.name === target.name) {
+        add(document.uri, declaration.name.range);
+      }
+      if (target.kind === "entity" && declaration.kind === "entity" && declaration.parent?.name === target.name) {
+        add(document.uri, declaration.parent.range);
+      }
+    }
+  }
+  return locations;
+
+  function add(uri: string, range: NativeSourceRange): void {
+    const key = `${uri}:${range.start.offset}:${range.end.offset}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    locations.push({ uri, range: toRange(range) });
+  }
 }
 
 function toDocumentSymbol(declaration: DeclarationNode): DocumentSymbol {

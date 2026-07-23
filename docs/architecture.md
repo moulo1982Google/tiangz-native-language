@@ -24,7 +24,9 @@ TextMate Grammar 负责打开文件时立即可用的基础高亮。Language Ser
 - Hover
 - 跳转定义与查找引用
 - Document Symbol
-- 格式化与 Quick Fix
+- 保留注释的安全格式化
+
+格式化器属于 language-core。它只接受语法正确的输入，并在输出后重新执行 Lexer；只有格式化前后的 Token 类型与文本逐项一致时才返回新文本。Quick Fix 属于后续工程体验阶段，不进入格式化器的职责边界。
 
 扩展不直接复制 codegen 规则。所有诊断必须来自 language-core。
 
@@ -37,4 +39,3 @@ TiangZ 的 `codegen_native_data` 最终只承担三件事：
 3. 将 AST 投影为 Rust、Host bootstrap 和 TypeScript。
 
 这样编辑器显示通过的源文件，codegen 就应当以相同语义通过。
-

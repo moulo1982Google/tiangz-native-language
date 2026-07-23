@@ -26,8 +26,8 @@
 - [x] 跳转定义和 Document Symbol
 - [x] Server Stats 可观测性
 - [x] 缓存稳定性、性能与 JSON-RPC 端到端测试
-- [ ] Signature Help 与查找引用
-- [ ] 格式化
+- [x] Signature Help 与查找引用
+- [x] 保留注释且校验 Token 等价的安全格式化
 
 ## Phase 3：工程体验
 

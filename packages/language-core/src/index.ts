@@ -1,4 +1,5 @@
 export { lexNativeDocument, type LexResult, type Token, type TokenKind } from "./lexer.js";
+export { formatNativeDocument } from "./formatter.js";
 export { parseNativeDocument } from "./parser.js";
 export {
   analyzeNativeDocuments,

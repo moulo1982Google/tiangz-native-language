@@ -5,6 +5,7 @@ import {
   analyzeNativeDocuments,
   analyzeNativeWorkspace,
   assertValidNativeWorkspace,
+  formatNativeDocument,
   NativeLanguageError,
   lexNativeDocument,
   parseNativeDocument,
@@ -47,6 +48,27 @@ op EntityDestroy(handle: u32): void;
     ],
   );
   assert.deepEqual(model.operations[0].params.map((parameter) => parameter.type), ["u32", "f64[]"]);
+});
+
+test("formats valid documents without changing tokens or comments", () => {
+  const source = `namespace   demo ;\n\n@typeId ( 1 ) // entity id\nentity   Unit   extends Entity{\nreadonly id:u32 ;\nvalues : f64 [ ]=0 ; // retained\n}\n`;
+  const formatted = formatNativeDocument(source);
+  assert.equal(formatted, `namespace demo;\n\n@typeId(1)  // entity id\nentity Unit extends Entity {\n  readonly id: u32;\n  values: f64[] = 0;  // retained\n}\n`);
+  assert.equal(formatNativeDocument(formatted), formatted);
+
+  const before = lexNativeDocument(source, "before").tokens.map(({ kind, text }) => ({ kind, text }));
+  const after = lexNativeDocument(formatted, "after").tokens.map(({ kind, text }) => ({ kind, text }));
+  assert.deepEqual(after, before);
+});
+
+test("leaves malformed documents unchanged", () => {
+  const malformed = "namespace demo; entity Unit { value: u32 }";
+  const unknownCharacter = "namespace demo; # entity Unit {}";
+  assert.equal(formatNativeDocument(malformed), malformed);
+  assert.equal(formatNativeDocument(unknownCharacter), unknownCharacter);
+
+  const overTokenBudget = "namespace demo; " + "op Ping(): void; ".repeat(20);
+  assert.equal(formatNativeDocument(overTokenBudget, { maxTokens: 10 }), overTokenBudget);
 });
 
 test("reports syntax diagnostics with source positions and keeps parsing", () => {

@@ -23,10 +23,14 @@ test("serves diagnostics and language features over JSON-RPC", async () => {
       },
     });
     assert.equal(initialize.capabilities.hoverProvider, true);
+    assert.equal(initialize.capabilities.referencesProvider, true);
+    assert.equal(initialize.capabilities.documentFormattingProvider, true);
+    assert.deepEqual(initialize.capabilities.signatureHelpProvider.triggerCharacters, ["(", ","]);
     rpc.notify("initialized", {});
 
     const entityUri = "file:///Entity.native";
     const opsUri = "file:///Ops.native";
+    const opsText = "namespace native; op   Ping ( ) : void ; // keep";
     const entityText = `namespace demo;
 abstract entity Entity {
   readonly id: u32;
@@ -49,7 +53,7 @@ entity Unit extends Entity {
         uri: opsUri,
         languageId: "tiangz-native",
         version: 1,
-        text: "namespace native; op Ping(): void;",
+        text: opsText,
       },
     });
     await diagnostics;
@@ -72,6 +76,35 @@ entity Unit extends Entity {
     });
     assert.equal(definition.uri, entityUri);
     assert.equal(definition.range.start.line, 1);
+
+    const references = await rpc.request("textDocument/references", {
+      textDocument: { uri: entityUri },
+      position: { line: 6, character: 22 },
+      context: { includeDeclaration: true },
+    });
+    assert.equal(references.length, 2);
+    assert.deepEqual(references.map((location) => location.range.start.line), [1, 6]);
+
+    const typeIdSignature = await rpc.request("textDocument/signatureHelp", {
+      textDocument: { uri: entityUri },
+      position: { line: 5, character: 9 },
+      context: { triggerKind: 1 },
+    });
+    assert.equal(typeIdSignature.signatures[0].label, "@typeId(id: integer)");
+
+    const operationSignature = await rpc.request("textDocument/signatureHelp", {
+      textDocument: { uri: opsUri },
+      position: { line: 0, character: opsText.indexOf("(") + 1 },
+      context: { triggerKind: 1 },
+    });
+    assert.equal(operationSignature.signatures[0].label, "op Ping(): void");
+
+    const formatting = await rpc.request("textDocument/formatting", {
+      textDocument: { uri: opsUri },
+      options: { tabSize: 2, insertSpaces: true },
+    });
+    assert.equal(formatting.length, 1);
+    assert.equal(formatting[0].newText, "namespace native; op Ping(): void;  // keep");
 
     const symbols = await rpc.request("textDocument/documentSymbol", {
       textDocument: { uri: entityUri },

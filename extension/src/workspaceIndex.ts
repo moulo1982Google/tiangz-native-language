@@ -35,6 +35,8 @@ interface CacheEntry {
   readonly localDiagnostics: readonly NativeDiagnostic[];
 }
 
+export const MAX_TOKENS_PER_FILE = 100_000;
+
 const ZERO_RANGE = {
   start: { offset: 0, line: 0, character: 0 },
   end: { offset: 0, line: 0, character: 0 },
@@ -67,7 +69,7 @@ export class NativeWorkspaceIndex {
     }
     const document = parseNativeDocument(text, uri, {
       maxDiagnostics: this.limits.maxDiagnosticsPerFile + 1,
-      maxTokens: 100_000,
+      maxTokens: MAX_TOKENS_PER_FILE,
     });
     this.parseCount += 1;
     this.entries.set(uri, {
