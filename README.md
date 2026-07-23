@@ -21,6 +21,7 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - 通过 VS Code Task 运行项目自定义 codegen
 - 中文诊断、命令、设置说明和代码片段说明
 - Entity、字段和 Native op 的详细中文 Hover，包括真实 Rust/TypeScript 生成符号与访问链路
+- 具体 Entity 的 TypeScript import、`Create`、字段读写与 `Dispose` Hover 示例
 - 有界缓存、输入限制与性能回归测试
 
 TiangZ 主仓库当前固定依赖 `v0.7.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel` 和 Rust/TypeScript 命名投影。
@@ -70,6 +71,8 @@ npm run package:extension
 - 实际调用方式，例如 `EntityGetNumber(handle, 3)` 与 `EntitySetNumber(handle, 3, value)`
 
 字段编号只用于跨 V8 边界定位字段，不会替代 Rust 结构体成员。
+
+将鼠标停在具体 Entity（例如 `Numeric`）上，还会根据完整继承字段生成一段 TypeScript 示例：从 `NativeNumericRef.ts` 导入、调用 `NativeNumericRef.Create(...)`、读写属性并在生命周期结束时调用 `Dispose()`。Hover 会显示 TiangZ 默认生成文件 `app/generated/model/native/NativeNumericRef.ts`；示例 import 的 `../../` 仅以 `app/demo/xxx` 下的业务文件为例，实际项目应按当前 TS 文件层级调整相对路径。
 
 ## 仓库结构
 

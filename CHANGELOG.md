@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.9.0
+
+- 具体 Entity Hover 根据完整继承字段自动生成 TypeScript import、`Create`、字段读写和 `Dispose` 示例。
+- 使用示例显示默认生成文件，并标注相对 import 路径需要按业务文件层级调整。
+- 字段 Hover 增加只读或可写属性的最小调用示例。
+- 抽象 Entity 不生成不存在的 TS handle 使用代码。
+
 ## 0.8.0
 
 - 将语法、语义和性能诊断消息统一为中文，保留稳定诊断码。

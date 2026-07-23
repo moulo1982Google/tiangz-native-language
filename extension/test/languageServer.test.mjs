@@ -91,6 +91,12 @@ entity Unit extends Entity {
     assert.match(hover.contents.value, /实体数据实际保存在 Rust 侧/);
     assert.match(hover.contents.value, /UnitData/);
     assert.match(hover.contents.value, /NativeUnitRef/);
+    assert.match(hover.contents.value, /app\/generated\/model\/native\/NativeUnitRef\.ts/);
+    assert.match(hover.contents.value, /import \{ NativeUnitRef \} from "\.\.\/\.\.\/generated\/model\/native\/NativeUnitRef"/);
+    assert.match(hover.contents.value, /const unit = NativeUnitRef\.Create\(\{/);
+    assert.match(hover.contents.value, /value: 0, \/\/ 可省略，默认 0/);
+    assert.match(hover.contents.value, /unit\.value \+= 1/);
+    assert.match(hover.contents.value, /unit\.Dispose\(\)/);
 
     const fieldHover = await rpc.request("textDocument/hover", {
       textDocument: { uri: entityUri },
@@ -102,6 +108,8 @@ entity Unit extends Entity {
     assert.match(fieldHover.contents.value, /\*\*字段编号\*\*：`3`/);
     assert.match(fieldHover.contents.value, /Rust 实际成员/);
     assert.match(fieldHover.contents.value, /字段编号只负责跨 V8 边界定位/);
+    assert.match(fieldHover.contents.value, /\*\*字段使用示例\*\*/);
+    assert.match(fieldHover.contents.value, /unit\.value \+= 1/);
 
     const definition = await rpc.request("textDocument/definition", {
       textDocument: { uri: entityUri },

@@ -18,6 +18,7 @@ import {
   projectNativeEntitySymbols,
   projectNativeFieldSymbols,
   projectNativeOperationSymbols,
+  toNativeCamelCase,
 } from "../../packages/language-core/src/index.js";
 import {
   CodeActionKind,
@@ -512,6 +513,7 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
   }
   if (!entity.abstract) {
     lines.push("", "TS 侧持有 Native handle；实体数据实际保存在 Rust 侧。`typeId` 用于创建对应的 Rust 数据变体。");
+    appendEntityUsageExample(lines, entity, flattenedFields);
   } else {
     lines.push("", "抽象实体只生成 Rust 基础数据结构，不生成可独立创建的 TS handle。");
   }
@@ -543,10 +545,19 @@ function describeFieldModel(entity: NativeEntityModel, field: NativeFieldModel, 
     `- **Rust 实际成员**：${rustMember ? markdownCode(rustMember) : "未生成"}`,
   ];
   if (tsProperty && fieldNumber !== undefined) {
+    const variableName = toNativeCamelCase(entity.name);
     lines.push(
       `- **TS 访问属性**：${markdownCode(tsProperty)}`,
       "",
       `TS 属性通过 \`NativeOps.EntityGetNumber(handle, ${fieldNumber})\`${field.readonly ? " 读取" : ` / \`EntitySetNumber(handle, ${fieldNumber}, value)\` 读写`}；字段编号只负责跨 V8 边界定位，数据仍保存在上面的 Rust 结构体成员中。`,
+      "",
+      "**字段使用示例**",
+      "",
+      "```ts",
+      ...(field.readonly
+        ? [`const ${field.name} = ${variableName}.${field.name};`]
+        : [`${variableName}.${field.name} += 1;`, `const ${field.name} = ${variableName}.${field.name};`]),
+      "```",
     );
   } else if (entity.abstract) {
     lines.push("", "该字段属于抽象实体；具体子实体会继承它，并在各自的 TS handle 中生成访问属性。");
@@ -584,6 +595,51 @@ function appendGeneratedSymbols(lines: string[], symbols: NativeGeneratedSymbols
   lines.push("", "**生成符号**");
   if (symbols.rust.length > 0) lines.push(`- **Rust**：${symbols.rust.map(markdownCode).join(", ")}`);
   if (symbols.typeScript.length > 0) lines.push(`- **TypeScript**：${symbols.typeScript.map(markdownCode).join(", ")}`);
+}
+
+function appendEntityUsageExample(
+  lines: string[],
+  entity: NativeEntityModel,
+  fields: readonly FlattenedNativeField[],
+): void {
+  const refName = `Native${entity.name}Ref`;
+  const variableName = toNativeCamelCase(entity.name);
+  const generatedFile = `app/generated/model/native/${refName}.ts`;
+  const writableField = fields.find((entry) => !entry.field.readonly)?.field;
+  lines.push(
+    "",
+    "**TypeScript 使用示例**",
+    "",
+    `生成文件：${markdownCode(generatedFile)}`,
+    "",
+    "下面的相对路径以 `app/demo/xxx` 目录中的业务文件为例；业务文件层级不同时只需调整 import 路径。",
+    "",
+    "```ts",
+    `import { ${refName} } from \"../../generated/model/native/${refName}\";`,
+    "",
+    `const ${variableName} = ${refName}.Create({`,
+    ...fields.map(({ field }) => {
+      const comment = field.defaultValue === undefined ? "" : ` // 可省略，默认 ${field.defaultValue}`;
+      return `  ${field.name}: ${exampleFieldValue(field)},${comment}`;
+    }),
+    "});",
+  );
+  if (writableField) {
+    lines.push(
+      "",
+      `${variableName}.${writableField.name} += 1;`,
+      `const ${writableField.name} = ${variableName}.${writableField.name};`,
+    );
+  } else if (fields[0]) {
+    lines.push("", `const ${fields[0].field.name} = ${variableName}.${fields[0].field.name};`);
+  }
+  lines.push("", `${variableName}.Dispose();`, "```");
+}
+
+function exampleFieldValue(field: NativeFieldModel): string {
+  if (field.defaultValue !== undefined) return field.defaultValue;
+  if (field.name === "id" || field.name === "instanceId") return "1";
+  return "0";
 }
 
 interface FlattenedNativeField {

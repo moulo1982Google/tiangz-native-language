@@ -37,6 +37,7 @@
 - [x] 可配置 `.native` 搜索根目录
 - [x] 可选的 codegen 命令入口
 - [x] 中文诊断、命令、设置说明与详细 Hover
+- [x] 根据 schema 自动生成 Entity/字段 TypeScript 使用示例
 
 ## Phase 4：发布
 

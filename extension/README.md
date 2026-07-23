@@ -13,6 +13,7 @@
 - 缺少 `@typeId` 时自动分配最小可用编号的 Quick Fix
 - 使用 VS Code Task 运行项目配置的 Native codegen
 - Entity、字段和 Native op 的详细中文 Hover，包括 Rust/TypeScript 生成符号、字段编号和调用链
+- 具体 Entity 的 TypeScript import、`Create`、字段访问和 `Dispose` 使用示例
 - “TiangZ Native：显示语言服务器状态”运行统计
 
 Language Server 在独立进程中运行，使用增量 AST 缓存、100ms 默认防抖、2MB 单文件上限和每文件 200 条诊断上限。
@@ -24,6 +25,8 @@ Language Server 在独立进程中运行，使用增量 AST 缓存、100ms 默�
 设置 `tiangzNative.codegenCommand` 后，可以从命令面板或 `.native` 编辑器右键菜单执行“TiangZ Native：运行代码生成”。`tiangzNative.codegenWorkingDirectory` 是工作区内的相对目录，默认为 `.`。
 
 将鼠标停在 Entity、字段或 Native op 上即可查看详细 Hover。字段 Hover 会区分 Rust 实际成员与跨 V8 边界字段编号，并显示 TS handle 属性的实际访问方式。
+
+具体 Entity Hover 会显示默认生成文件并生成完整的 TS 创建示例。示例相对 import 路径以 `app/demo/xxx` 中的业务文件为基准，使用时应按当前文件位置调整层级。
 
 ## 示例
 
