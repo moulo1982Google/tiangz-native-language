@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.1
+
+- 增加 `tiangzNative.sourceRoots`，只将指定工作区目录作为权威 `.native` 源。
+- 文件发现、文件监听和 Language Server 入库统一遵守源码根目录。
+- 修复父工作区中的示例或工具 schema 污染业务符号表、产生重复 Entity 诊断的问题。
+
 ## 0.4.0
 
 - 增加保留注释的安全格式化；格式化前后 Token 不一致时拒绝修改。

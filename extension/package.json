@@ -2,7 +2,7 @@
   "name": "tiangz-native-language",
   "displayName": "TiangZ Native Language",
   "description": "Language support for the TiangZ .native entity and native-op schema",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "eblard-admin",
   "license": "MIT",
   "engines": {
@@ -41,7 +41,7 @@
     "build": "node ../tools/build-extension.mjs",
     "check:package": "vsce ls --no-dependencies",
     "prepackage": "node -e \"require('node:fs').mkdirSync('../dist', { recursive: true })\"",
-    "package": "npm run build && vsce package --no-dependencies --out ../dist/tiangz-native-language-0.4.0.vsix"
+    "package": "npm run build && vsce package --no-dependencies --out ../dist/tiangz-native-language-0.4.1.vsix"
   },
   "devDependencies": {
     "@types/vscode": "^1.91.0",
@@ -113,6 +113,14 @@
           "minimum": 100,
           "maximum": 100000,
           "description": "Maximum .native files indexed during workspace discovery."
+        },
+        "tiangzNative.sourceRoots": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Workspace-relative directories containing authoritative .native sources. Empty indexes the whole workspace. Reload VS Code after changing this setting."
         }
       }
     }

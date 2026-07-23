@@ -31,6 +31,16 @@ npm run package:extension
 
 生成的 VSIX 位于 `dist/`，可以通过 VS Code 的“从 VSIX 安装”进行测试。格式化可使用 VS Code 的“格式化文档”命令；存在语法错误时，格式化器会保留原文。
 
+业务仓库建议明确配置权威 schema 根目录，防止工具示例或测试夹具进入跨文件符号表：
+
+```json
+{
+  "tiangzNative.sourceRoots": ["native_data"]
+}
+```
+
+路径相对于每个 VS Code 工作区目录；空数组保持扫描整个工作区。修改后需要重新加载 VS Code 窗口。
+
 ## 仓库结构
 
 ```text

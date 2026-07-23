@@ -14,6 +14,8 @@
 
 Language Server 在独立进程中运行，使用增量 AST 缓存、100ms 默认防抖、2MB 单文件上限和每文件 200 条诊断上限。
 
+可通过 `tiangzNative.sourceRoots` 指定工作区内权威 `.native` 目录，例如 `["native_data"]`。修改该配置后需要重新加载 VS Code 窗口。
+
 ## 示例
 
 ```native

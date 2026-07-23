@@ -17,6 +17,7 @@ interface NativeSettings {
   readonly maxFileSizeBytes: number;
   readonly maxDiagnosticsPerFile: number;
   readonly initialFileLimit: number;
+  readonly sourceRoots: readonly string[];
 }
 
 interface ServerStats extends NativeSettings {
@@ -34,6 +35,7 @@ interface ServerStats extends NativeSettings {
 let client: LanguageClient | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  const settings = readSettings();
   const serverModule = context.asAbsolutePath(path.join("dist", "server.cjs"));
   const serverOptions: ServerOptions = {
     run: { module: serverModule, transport: TransportKind.ipc },
@@ -43,7 +45,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       options: { execArgv: ["--nolazy", "--inspect=6011"] },
     },
   };
-  const watcher = vscode.workspace.createFileSystemWatcher("**/*.native");
+  const watchers = createNativeFileWatchers(settings.sourceRoots);
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
       { scheme: "file", language: "tiangz-native" },
@@ -51,9 +53,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ],
     synchronize: {
       configurationSection: "tiangzNative",
-      fileEvents: watcher,
+      fileEvents: watchers,
     },
-    initializationOptions: readSettings(),
+    initializationOptions: {
+      ...settings,
+      sourceRootUris: resolveSourceRootUris(settings.sourceRoots),
+    },
     outputChannelName: "TiangZ Native Language Server",
   };
 
@@ -63,7 +68,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     serverOptions,
     clientOptions,
   );
-  context.subscriptions.push(watcher);
+  context.subscriptions.push(...watchers);
   context.subscriptions.push(vscode.commands.registerCommand("tiangzNative.showServerStats", showServerStats));
   context.subscriptions.push({
     dispose: () => {
@@ -74,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   await client.start();
-  void discoverWorkspaceFiles(client, readSettings().initialFileLimit).catch((error: unknown) => {
+  void discoverWorkspaceFiles(client, settings).catch((error: unknown) => {
     if (client) console.error("TiangZ Native workspace discovery failed", error);
   });
 }
@@ -85,12 +90,25 @@ export async function deactivate(): Promise<void> {
   if (activeClient) await activeClient.stop();
 }
 
-async function discoverWorkspaceFiles(activeClient: LanguageClient, limit: number): Promise<void> {
-  const files = await vscode.workspace.findFiles("**/*.native", EXCLUDED_NATIVE_FILES, limit);
-  await activeClient.sendNotification(INDEX_FILES_NOTIFICATION, files.map((file) => file.toString()));
-  if (files.length === limit) {
+async function discoverWorkspaceFiles(activeClient: LanguageClient, settings: NativeSettings): Promise<void> {
+  const patterns = createNativeFilePatterns(settings.sourceRoots);
+  const discovered: vscode.Uri[] = [];
+  const seen = new Set<string>();
+  for (const pattern of patterns) {
+    const remaining = settings.initialFileLimit - discovered.length;
+    if (remaining <= 0) break;
+    const files = await vscode.workspace.findFiles(pattern, EXCLUDED_NATIVE_FILES, remaining);
+    for (const file of files) {
+      const uri = file.toString();
+      if (seen.has(uri)) continue;
+      seen.add(uri);
+      discovered.push(file);
+    }
+  }
+  await activeClient.sendNotification(INDEX_FILES_NOTIFICATION, discovered.map((file) => file.toString()));
+  if (discovered.length === settings.initialFileLimit) {
     void vscode.window.showWarningMessage(
-      `TiangZ Native indexed the first ${limit} files. Increase tiangzNative.initialFileLimit if needed.`,
+      `TiangZ Native indexed the first ${settings.initialFileLimit} files. Increase tiangzNative.initialFileLimit if needed.`,
     );
   }
 }
@@ -113,5 +131,32 @@ function readSettings(): NativeSettings {
     maxFileSizeBytes: configuration.get("maxFileSizeBytes", 2 * 1024 * 1024),
     maxDiagnosticsPerFile: configuration.get("maxDiagnosticsPerFile", 200),
     initialFileLimit: configuration.get("initialFileLimit", 10_000),
+    sourceRoots: normalizeSourceRoots(configuration.get<unknown>("sourceRoots", [])),
   };
+}
+
+function createNativeFileWatchers(sourceRoots: readonly string[]): vscode.FileSystemWatcher[] {
+  return createNativeFilePatterns(sourceRoots).map((pattern) => vscode.workspace.createFileSystemWatcher(pattern));
+}
+
+function createNativeFilePatterns(sourceRoots: readonly string[]): vscode.GlobPattern[] {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (sourceRoots.length === 0 || folders.length === 0) return ["**/*.native"];
+  return folders.flatMap((folder) => sourceRoots.map(
+    (root) => new vscode.RelativePattern(folder, `${root}/**/*.native`),
+  ));
+}
+
+function resolveSourceRootUris(sourceRoots: readonly string[]): readonly string[] {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (sourceRoots.length === 0 || folders.length === 0) return [];
+  return folders.flatMap((folder) => sourceRoots.map((root) => vscode.Uri.joinPath(folder.uri, root).toString()));
+}
+
+function normalizeSourceRoots(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .filter((root): root is string => typeof root === "string")
+    .map((root) => root.trim().replaceAll("\\", "/").replace(/^\.\//, "").replace(/^\/+|\/+$/g, ""))
+    .filter((root) => root.length > 0 && !root.split("/").includes("..")))];
 }

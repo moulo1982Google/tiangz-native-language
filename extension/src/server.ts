@@ -54,9 +54,11 @@ const publishedUris = new Set<string>();
 let validationTimer: NodeJS.Timeout | undefined;
 let lastSlowLogAt = 0;
 let shuttingDown = false;
+let sourceRootUris: readonly string[] = [];
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
   settings = normalizeSettings(params.initializationOptions);
+  sourceRootUris = normalizeSourceRootUris(params.initializationOptions);
   index.setLimits(settings);
   return {
     capabilities: {
@@ -86,7 +88,9 @@ connection.onDidChangeConfiguration((change) => {
 
 connection.onNotification(INDEX_FILES_NOTIFICATION, (value: unknown) => {
   if (!Array.isArray(value)) return;
-  const uris = value.filter((item): item is string => typeof item === "string").slice(0, settings.initialFileLimit);
+  const uris = value
+    .filter((item): item is string => typeof item === "string" && shouldIndexUri(item))
+    .slice(0, settings.initialFileLimit);
   void loadFiles(uris);
 });
 
@@ -95,7 +99,7 @@ connection.onDidChangeWatchedFiles((change) => {
   for (const event of change.changes) {
     if (event.type === FileChangeType.Deleted) {
       index.delete(event.uri);
-    } else {
+    } else if (shouldIndexUri(event.uri)) {
       changed.push(event.uri);
     }
   }
@@ -104,16 +108,22 @@ connection.onDidChangeWatchedFiles((change) => {
 });
 
 documents.onDidOpen((event) => {
+  if (!shouldIndexUri(event.document.uri)) {
+    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+    return;
+  }
   index.update(event.document.uri, event.document.getText(), event.document.version);
   scheduleValidation();
 });
 
 documents.onDidChangeContent((event) => {
+  if (!shouldIndexUri(event.document.uri)) return;
   index.update(event.document.uri, event.document.getText(), event.document.version);
   scheduleValidation();
 });
 
 documents.onDidClose((event) => {
+  if (!shouldIndexUri(event.document.uri)) return;
   if (event.document.uri.startsWith("file:")) void loadFiles([event.document.uri]);
   else {
     index.delete(event.document.uri);
@@ -498,6 +508,23 @@ function normalizeSettings(value: unknown): NativeSettings {
     maxDiagnosticsPerFile: boundedNumber(source.maxDiagnosticsPerFile, 200, 10, 2_000),
     initialFileLimit: boundedNumber(source.initialFileLimit, 10_000, 100, 100_000),
   };
+}
+
+function normalizeSourceRootUris(value: unknown): readonly string[] {
+  if (!isRecord(value) || !Array.isArray(value.sourceRootUris)) return [];
+  return [...new Set(value.sourceRootUris
+    .filter((uri): uri is string => typeof uri === "string" && uri.startsWith("file:"))
+    .map((uri) => normalizeUri(uri).replace(/\/+$/, "")))];
+}
+
+function shouldIndexUri(uri: string): boolean {
+  if (!uri.startsWith("file:") || sourceRootUris.length === 0) return true;
+  const candidate = normalizeUri(uri);
+  return sourceRootUris.some((root) => candidate === root || candidate.startsWith(`${root}/`));
+}
+
+function normalizeUri(uri: string): string {
+  return process.platform === "win32" ? uri.toLowerCase() : uri;
 }
 
 function boundedNumber(value: unknown, fallback: number, minimum: number, maximum: number): number {

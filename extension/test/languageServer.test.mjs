@@ -20,6 +20,7 @@ test("serves diagnostics and language features over JSON-RPC", async () => {
         maxFileSizeBytes: 2 * 1024 * 1024,
         maxDiagnosticsPerFile: 200,
         initialFileLimit: 10_000,
+        sourceRootUris: ["file:///workspace/native_data"],
       },
     });
     assert.equal(initialize.capabilities.hoverProvider, true);
@@ -28,8 +29,9 @@ test("serves diagnostics and language features over JSON-RPC", async () => {
     assert.deepEqual(initialize.capabilities.signatureHelpProvider.triggerCharacters, ["(", ","]);
     rpc.notify("initialized", {});
 
-    const entityUri = "file:///Entity.native";
-    const opsUri = "file:///Ops.native";
+    const entityUri = "file:///workspace/native_data/Entity.native";
+    const opsUri = "file:///workspace/native_data/Ops.native";
+    const excludedUri = "file:///workspace/tools/language/examples/Entity.native";
     const opsText = "namespace native; op   Ping ( ) : void ; // keep";
     const entityText = `namespace demo;
 abstract entity Entity {
@@ -56,7 +58,20 @@ entity Unit extends Entity {
         text: opsText,
       },
     });
+    const excludedDiagnostics = rpc.waitForNotification(
+      "textDocument/publishDiagnostics",
+      (params) => params.uri === excludedUri && params.diagnostics.length === 0,
+    );
+    rpc.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: excludedUri,
+        languageId: "tiangz-native",
+        version: 1,
+        text: "namespace demo; @typeId(99) entity Unit extends Entity {}",
+      },
+    });
     await diagnostics;
+    await excludedDiagnostics;
 
     const completion = await rpc.request("textDocument/completion", {
       textDocument: { uri: entityUri },
