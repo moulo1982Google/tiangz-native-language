@@ -1,0 +1,15 @@
+namespace demo;
+
+abstract entity Entity {
+  readonly id: u32;
+  readonly instanceId: u32;
+}
+
+@typeId(1)
+@component
+entity Unit extends Entity {
+  readonly mapId: u32;
+  x: f32 = 0;
+  y: f32 = 0;
+}
+

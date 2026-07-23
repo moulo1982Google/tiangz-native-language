@@ -1,0 +1,18 @@
+{
+  "name": "tiangz-native-language-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TiangZ .native language tooling workspace",
+  "workspaces": [
+    "extension",
+    "packages/*"
+  ],
+  "scripts": {
+    "check": "npm run check --workspace tiangz-native-language",
+    "package:extension": "npm run package --workspace tiangz-native-language"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

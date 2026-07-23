@@ -1,0 +1,38 @@
+{
+  "Namespace": {
+    "prefix": "namespace",
+    "body": [
+      "namespace ${1:demo};"
+    ],
+    "description": "Declare a TiangZ Native namespace"
+  },
+  "Entity": {
+    "prefix": "entity",
+    "body": [
+      "@typeId(${1:1})",
+      "entity ${2:Name} extends ${3:Entity} {",
+      "  ${4:value}: ${5:u32} = ${6:0};",
+      "}"
+    ],
+    "description": "Declare a native entity"
+  },
+  "Component Entity": {
+    "prefix": "component",
+    "body": [
+      "@typeId(${1:1})",
+      "@component",
+      "entity ${2:Name} extends ${3:Entity} {",
+      "  ${4:value}: ${5:u32} = ${6:0};",
+      "}"
+    ],
+    "description": "Declare a native component entity"
+  },
+  "Native Op": {
+    "prefix": "op",
+    "body": [
+      "op ${1:Operation}(${2:value}: ${3:u32}): ${4:void};"
+    ],
+    "description": "Declare a native host operation"
+  }
+}
+

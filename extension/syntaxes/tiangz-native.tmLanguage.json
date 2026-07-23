@@ -1,0 +1,109 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "TiangZ Native",
+  "scopeName": "source.tiangz-native",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#annotations" },
+    { "include": "#namespace" },
+    { "include": "#entity" },
+    { "include": "#op" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#numbers" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.tiangz-native",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        {
+          "name": "storage.type.annotation.tiangz-native",
+          "match": "@[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "namespace": {
+      "patterns": [
+        {
+          "match": "\\b(namespace)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.namespace.tiangz-native" },
+            "2": { "name": "entity.name.namespace.tiangz-native" }
+          }
+        }
+      ]
+    },
+    "entity": {
+      "patterns": [
+        {
+          "match": "\\b(entity)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.entity.tiangz-native" },
+            "2": { "name": "entity.name.type.tiangz-native" }
+          }
+        },
+        {
+          "match": "\\b(extends)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.modifier.extends.tiangz-native" },
+            "2": { "name": "entity.other.inherited-class.tiangz-native" }
+          }
+        }
+      ]
+    },
+    "op": {
+      "patterns": [
+        {
+          "match": "\\b(op)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.function.tiangz-native" },
+            "2": { "name": "entity.name.function.tiangz-native" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "storage.modifier.tiangz-native",
+          "match": "\\b(?:abstract|readonly)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.tiangz-native",
+          "match": "\\b(?:u32|i32|i8|f32|f64|bool|bytes|void)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.tiangz-native",
+          "match": "(?<![A-Za-z0-9_])-?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)\\b"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_]*)\\s*(?=:)",
+          "captures": {
+            "1": { "name": "variable.other.member.tiangz-native" }
+          }
+        }
+      ]
+    }
+  }
+}
+
