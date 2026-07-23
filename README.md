@@ -19,6 +19,7 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - `@typeId`/Native op 签名提示与保留注释的安全格式化
 - 缺少 `@typeId` 时自动分配最小可用编号的 Quick Fix
 - 通过 VS Code Task 运行项目自定义 codegen
+- 在 Entity、字段和 Native op Hover 中显示真实 Rust/TypeScript 生成符号
 - 有界缓存、输入限制与性能回归测试
 
 TiangZ 主仓库当前固定依赖 `v0.2.0`，`codegen_native_data` 已直接消费该包输出的 `NativeSemanticModel`。

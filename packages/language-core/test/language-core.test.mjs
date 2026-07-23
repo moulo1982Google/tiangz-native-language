@@ -10,6 +10,9 @@ import {
   NativeLanguageError,
   lexNativeDocument,
   parseNativeDocument,
+  projectNativeEntitySymbols,
+  projectNativeFieldSymbols,
+  projectNativeOperationSymbols,
 } from "../dist/index.js";
 
 const entitySource = `namespace demo;
@@ -49,6 +52,28 @@ op EntityDestroy(handle: u32): void;
     ],
   );
   assert.deepEqual(model.operations[0].params.map((parameter) => parameter.type), ["u32", "f64[]"]);
+});
+
+test("projects the exact Rust and TypeScript generated symbol names", () => {
+  assert.deepEqual(projectNativeEntitySymbols({ name: "Unit", abstract: false }), {
+    rust: ["UnitData", "NativeEntityData::Unit", "ENTITY_TYPE_UNIT", "get_unit_number", "set_unit_number"],
+    typeScript: ["NativeUnitRef", "NativeUnitCreateArgs", "NativeUnitField", "NativeUnitRef.ts"],
+  });
+  assert.deepEqual(projectNativeFieldSymbols(
+    { name: "Unit", abstract: false },
+    { name: "inputChanged" },
+  ), {
+    rust: ["UnitData.input_changed", "UNIT_FIELD_INPUT_CHANGED"],
+    typeScript: ["NativeUnitRef.inputChanged", "NativeUnitField.InputChanged"],
+  });
+  assert.deepEqual(projectNativeOperationSymbols({ name: "UnitSetMovementInput" }), {
+    rust: ["op_native_unit_set_movement_input"],
+    typeScript: ["NativeOps.UnitSetMovementInput", "NativeHostOpsApi.unitSetMovementInput"],
+  });
+  assert.deepEqual(projectNativeEntitySymbols({ name: "Entity", abstract: true }), {
+    rust: ["EntityData"],
+    typeScript: [],
+  });
 });
 
 test("finds the smallest available typeId and rejects ambiguous workspaces", () => {

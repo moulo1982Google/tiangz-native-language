@@ -6,9 +6,17 @@ import type {
   EntityDeclarationNode,
   NativeDiagnostic,
   NativeDocument,
+  NativeEntityModel,
+  NativeGeneratedSymbols,
   SourceRange as NativeSourceRange,
 } from "../../packages/language-core/src/index.js";
-import { findNextAvailableTypeId, formatNativeDocument } from "../../packages/language-core/src/index.js";
+import {
+  findNextAvailableTypeId,
+  formatNativeDocument,
+  projectNativeEntitySymbols,
+  projectNativeFieldSymbols,
+  projectNativeOperationSymbols,
+} from "../../packages/language-core/src/index.js";
 import {
   CodeActionKind,
   CompletionItemKind,
@@ -439,34 +447,66 @@ function describeNodeAt(document: NativeDocument, offset: number): string | unde
   for (const declaration of document.declarations) {
     if (!containsOffset(declaration.range, offset)) continue;
     if (declaration.kind === "entity") {
+      if (declaration.parent && containsOffset(declaration.parent.range, offset)) {
+        const parentName = declaration.parent.name;
+        const parent = index.getModel().entities.find((entity) => entity.name === parentName);
+        if (parent) return describeEntityModel(parent);
+      }
+      const entity = index.getModel().entities.find(
+        (candidate) => candidate.sourceFile === document.uri && candidate.name === declaration.name.name,
+      );
       for (const field of declaration.fields) {
         if (containsOffset(field.range, offset)) {
           const modifier = field.readonly ? "readonly " : "";
           const defaultValue = field.defaultValue ? ` = ${field.defaultValue.raw}` : "";
-          return `\`${modifier}${field.name.name}: ${field.type.name}${defaultValue}\``;
+          const signature = `\`${modifier}${field.name.name}: ${field.type.name}${defaultValue}\``;
+          const fieldModel = entity?.fields.find((candidate) => candidate.name === field.name.name);
+          return entity && fieldModel
+            ? describeGeneratedSymbols(signature, projectNativeFieldSymbols(entity, fieldModel))
+            : signature;
         }
       }
       const parent = declaration.parent ? ` extends ${declaration.parent.name}` : "";
-      return `\`${declaration.abstract ? "abstract " : ""}entity ${declaration.name.name}${parent}\``;
+      const signature = `\`${declaration.abstract ? "abstract " : ""}entity ${declaration.name.name}${parent}\``;
+      return entity ? describeGeneratedSymbols(signature, projectNativeEntitySymbols(entity)) : signature;
     }
     const parameters = declaration.parameters.map((parameter) => `${parameter.name.name}: ${parameter.type.name}`).join(", ");
-    return `\`op ${declaration.name.name}(${parameters}): ${declaration.returnType.name}\``;
+    const signature = `\`op ${declaration.name.name}(${parameters}): ${declaration.returnType.name}\``;
+    const operation = index.getModel().operations.find(
+      (candidate) => candidate.sourceFile === document.uri && candidate.name === declaration.name.name,
+    );
+    return operation ? describeGeneratedSymbols(signature, projectNativeOperationSymbols(operation)) : signature;
   }
   return undefined;
 }
 
 function describeGlobal(word: string): string | undefined {
   const entity = index.getModel().entities.find((candidate) => candidate.name === word);
-  if (entity) {
-    const parent = entity.parent ? ` extends ${entity.parent}` : "";
-    return `\`${entity.abstract ? "abstract " : ""}entity ${entity.name}${parent}\`  \n${entity.sourceFile}`;
-  }
+  if (entity) return describeEntityModel(entity);
   const operation = index.getModel().operations.find((candidate) => candidate.name === word);
   if (operation) {
     const parameters = operation.params.map((parameter) => `${parameter.name}: ${parameter.type}`).join(", ");
-    return `\`op ${operation.name}(${parameters}): ${operation.returnType}\`  \n${operation.sourceFile}`;
+    const signature = `\`op ${operation.name}(${parameters}): ${operation.returnType}\`  \n${operation.sourceFile}`;
+    return describeGeneratedSymbols(signature, projectNativeOperationSymbols(operation));
   }
   return undefined;
+}
+
+function describeEntityModel(entity: NativeEntityModel): string {
+  const parent = entity.parent ? ` extends ${entity.parent}` : "";
+  const signature = `\`${entity.abstract ? "abstract " : ""}entity ${entity.name}${parent}\`  \n${entity.sourceFile}`;
+  return describeGeneratedSymbols(signature, projectNativeEntitySymbols(entity));
+}
+
+function describeGeneratedSymbols(signature: string, symbols: NativeGeneratedSymbols): string {
+  const lines = [signature, "", "**Generated symbols**"];
+  if (symbols.rust.length > 0) lines.push(`- Rust: ${symbols.rust.map(markdownCode).join(", ")}`);
+  if (symbols.typeScript.length > 0) lines.push(`- TypeScript: ${symbols.typeScript.map(markdownCode).join(", ")}`);
+  return lines.join("\n");
+}
+
+function markdownCode(value: string): string {
+  return `\`${value}\``;
 }
 
 type SymbolTarget = Readonly<{ kind: "entity" | "operation"; name: string }>;

@@ -2,6 +2,17 @@ export { lexNativeDocument, type LexResult, type Token, type TokenKind } from ".
 export { formatNativeDocument } from "./formatter.js";
 export { parseNativeDocument } from "./parser.js";
 export {
+  nativeRustOperationName,
+  projectNativeEntitySymbols,
+  projectNativeFieldSymbols,
+  projectNativeOperationSymbols,
+  toNativeCamelCase,
+  toNativePascalCase,
+  toNativeScreamingSnakeCase,
+  toNativeSnakeCase,
+  type NativeGeneratedSymbols,
+} from "./projection.js";
+export {
   findNextAvailableTypeId,
   MAX_NATIVE_TYPE_ID,
   MIN_NATIVE_TYPE_ID,

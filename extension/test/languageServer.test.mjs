@@ -85,6 +85,16 @@ entity Unit extends Entity {
       position: { line: 6, character: 8 },
     });
     assert.match(hover.contents.value, /entity Unit extends Entity/);
+    assert.match(hover.contents.value, /UnitData/);
+    assert.match(hover.contents.value, /NativeUnitRef/);
+
+    const fieldHover = await rpc.request("textDocument/hover", {
+      textDocument: { uri: entityUri },
+      position: { line: 7, character: 3 },
+    });
+    assert.match(fieldHover.contents.value, /UnitData\.value/);
+    assert.match(fieldHover.contents.value, /UNIT_FIELD_VALUE/);
+    assert.match(fieldHover.contents.value, /NativeUnitRef\.value/);
 
     const definition = await rpc.request("textDocument/definition", {
       textDocument: { uri: entityUri },
@@ -114,6 +124,14 @@ entity Unit extends Entity {
       context: { triggerKind: 1 },
     });
     assert.equal(operationSignature.signatures[0].label, "op Ping(): void");
+
+    const operationHover = await rpc.request("textDocument/hover", {
+      textDocument: { uri: opsUri },
+      position: { line: 0, character: opsText.indexOf("Ping") + 1 },
+    });
+    assert.match(operationHover.contents.value, /op_native_ping/);
+    assert.match(operationHover.contents.value, /NativeOps\.Ping/);
+    assert.match(operationHover.contents.value, /NativeHostOpsApi\.ping/);
 
     const formatting = await rpc.request("textDocument/formatting", {
       textDocument: { uri: opsUri },

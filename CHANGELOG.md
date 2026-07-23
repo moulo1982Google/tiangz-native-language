@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.7.0
+
+- Entity Hover 显示 Rust Data/enum/常量/accessor 与 TypeScript handle/args/field 符号。
+- 字段 Hover 显示 Rust 成员/字段常量与 TypeScript 属性/字段表符号。
+- Native op Hover 显示 Rust Deno op 与 TypeScript facade/host API 符号。
+- 将 Rust/TypeScript 命名投影函数加入 language-core，供编辑器和 TiangZ codegen 共用。
+
 ## 0.6.0
 
 - 增加 `TiangZ Native: Run Codegen` 命令和 `.native` 编辑器右键入口。

@@ -32,6 +32,8 @@ TextMate Grammar 负责打开文件时立即可用的基础高亮。Language Ser
 
 codegen 命令属于 VS Code Extension Host，不进入 Language Server。扩展只解析受信任工作区中的项目配置、确认未保存文件，并创建一次性 VS Code Task；生成器进程、终端和退出状态由 VS Code Task 系统管理。
 
+Rust/TypeScript 生成符号的命名投影属于 language-core。Hover 与 TiangZ codegen 必须调用同一组 `projectNative*Symbols`、`toNative*Case` 和 `nativeRustOperationName` API，禁止分别维护字符串拼接规则。
+
 扩展不直接复制 codegen 规则。所有诊断必须来自 language-core。
 
 ## TiangZ 集成

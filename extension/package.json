@@ -2,7 +2,7 @@
   "name": "tiangz-native-language",
   "displayName": "TiangZ Native Language",
   "description": "Language support for the TiangZ .native entity and native-op schema",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "moulo",
   "author": "moulo",
   "license": "MIT",
@@ -43,7 +43,7 @@
     "build": "node ../tools/build-extension.mjs",
     "check:package": "vsce ls --no-dependencies",
     "prepackage": "node -e \"require('node:fs').mkdirSync('../dist', { recursive: true })\"",
-    "package": "npm run build && vsce package --no-dependencies --out ../dist/tiangz-native-language-0.6.0.vsix"
+    "package": "npm run build && vsce package --no-dependencies --out ../dist/tiangz-native-language-0.7.0.vsix"
   },
   "devDependencies": {
     "@types/vscode": "^1.91.0",

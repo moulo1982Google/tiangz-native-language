@@ -10,6 +10,9 @@
 parseNativeDocument(text, uri);
 formatNativeDocument(text);
 findNextAvailableTypeId(typeIds);
+projectNativeEntitySymbols(entity);
+projectNativeFieldSymbols(entity, field);
+projectNativeOperationSymbols(operation);
 analyzeNativeWorkspace(sources);
 assertValidNativeWorkspace(sources);
 ```
@@ -17,3 +20,5 @@ assertValidNativeWorkspace(sources);
 `formatNativeDocument` 只格式化语法正确的文档，并在返回前验证 Token 序列完全一致；无法确认安全时原样返回输入。
 
 `findNextAvailableTypeId` 返回最小可用编号；检测到重复编号或 `1..65535` 已耗尽时返回明确状态，不进行隐式分配。
+
+`projectNative*Symbols` 和 `toNative*Case` 是生成器与编辑器共享的 Rust/TypeScript 命名规则。生成器不应另写一套字符串转换。

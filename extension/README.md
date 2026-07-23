@@ -12,6 +12,7 @@
 - 保留注释、Token 等价校验的安全格式化
 - 缺少 `@typeId` 时自动分配最小可用编号的 Quick Fix
 - 使用 VS Code Task 运行项目配置的 Native codegen
+- Entity、字段和 Native op 的 Rust/TypeScript 生成符号 Hover
 - `TiangZ Native: Show Language Server Stats` 运行统计
 
 Language Server 在独立进程中运行，使用增量 AST 缓存、100ms 默认防抖、2MB 单文件上限和每文件 200 条诊断上限。

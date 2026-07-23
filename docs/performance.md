@@ -15,6 +15,7 @@ Language Server 不能阻塞 VS Code Extension Host，工作区增长与反复�
 - 定义跳转与查找引用只遍历已有 AST，不重新读取磁盘，也不建立第二份符号缓存。
 - Signature Help 只分析当前行上下文；格式化不保留中间结果，完成请求后即可回收。
 - typeId Quick Fix 使用一次性的 64KB 计数表规划编号，请求完成后不保留额外缓存。
+- 生成符号 Hover 直接投影当前语义模型，不读取 generated 文件，也不增加文件监听或符号缓存。
 - Lexer 最多为单文件构造 100000 个 Token，Parser 的诊断对象预算与发布上限绑定；恶意输入只产生截断提示，不会无界分配。
 
 ## 有界策略
