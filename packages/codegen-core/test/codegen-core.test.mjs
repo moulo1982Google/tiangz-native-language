@@ -79,11 +79,16 @@ test("generates different lifecycle APIs for components and standalone handles",
   const rust = files.find((file) => file.relativePath.endsWith("native_data.rs"))?.content ?? "";
   assert.match(rust, /pub\(crate\) __dirty_mask: u64/);
   assert.match(rust, /NUMERIC_MEMBER_CURRENT_HP: u32 = 1/);
-  assert.match(rust, /take_numeric_dirty_mask/);
+  assert.match(rust, /pub\(crate\) __member_revisions: \[u64; 64\]/);
   assert.match(rust, /pub struct NumericDelta/);
+  assert.match(rust, /pub revision: u64/);
   assert.match(rust, /pub current_hp: Option<i32>/);
-  assert.match(rust, /take_numeric_delta/);
+  assert.match(rust, /peek_numeric_delta/);
+  assert.match(rust, /ack_numeric_delta/);
+  assert.doesNotMatch(rust, /take_numeric_delta/);
   assert.match(rust, /value\.__dirty_mask \|= 1u64 << 1/);
+  assert.match(rust, /value\.__member_revisions\[1\] = value\.__revision/);
+  assert.match(rust, /__dirty_mask: 0u64/);
 });
 
 test("supports caller-owned output paths and generated banner", () => {

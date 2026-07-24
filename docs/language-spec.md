@@ -39,6 +39,7 @@ entityScalar    = "u32" | "i32" | "i8" | "f32" ;
 - `f32` 默认值必须是有限数值。
 - `@memberId(1..63)` 只能出现在 `@replicated` Entity 的可写字段上，同一 Entity 内必须唯一。
 - `memberId` 对应生成的 `u64` dirty mask bit，是稳定复制契约；普通跨 V8 字段编号仍由完整继承字段顺序生成，两者用途不同。
+- 固定字段 Delta 使用 `peek_xxx_delta` 读取当前值与 revision，只有发送成功后才调用 `ack_xxx_delta`。Ack 逐字段比较 revision，不会误清除并发产生的新修改。
 
 `namespace` 已进入语法，但 0.1 的实体名、typeId 和 op 名仍按整个项目全局唯一处理，暂不以命名空间隔离。
 

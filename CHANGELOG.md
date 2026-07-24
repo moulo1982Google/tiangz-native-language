@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.12.0
+
+- 固定字段复制由提取即清除改为 `peek_xxx_delta` / `ack_xxx_delta` 两阶段确认。
+- 为每个 `memberId` 生成最后修改 revision，旧发送完成后的 Ack 不会清除发送期间产生的新修改。
+- 新建 Entity 的 dirty mask 默认为空；初始化与进入视野使用独立 Snapshot，不伪造业务变更。
+
 ## 0.11.2
 
 - 为 `@replicated`、`@memberId` 增加补全、参数提示和中文 Hover 说明。

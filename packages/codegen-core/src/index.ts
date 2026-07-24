@@ -264,8 +264,10 @@ function renderRustStruct(entity: NativeEntityModel): string {
     if (!type) throw new Error(`unsupported native Rust field type ${field.type}`);
     return `    pub ${toNativeSnakeCase(field.name)}: ${type},`;
   }).join("\n");
-  const dirtyMask = entity.replicated ? "    pub(crate) __dirty_mask: u64,\n" : "";
-  return `#[derive(Debug, Clone)]\npub struct ${entity.name}Data {\n${dirtyMask}${parent}${fields}\n}`;
+  const dirtyState = entity.replicated
+    ? "    pub(crate) __dirty_mask: u64,\n    pub(crate) __revision: u64,\n    pub(crate) __member_revisions: [u64; 64],\n"
+    : "";
+  return `#[derive(Debug, Clone)]\npub struct ${entity.name}Data {\n${dirtyState}${parent}${fields}\n}`;
 }
 
 function renderRustFields(schema: NativeSemanticModel, entity: NativeEntityModel): string {
@@ -281,7 +283,8 @@ function renderRustFields(schema: NativeSemanticModel, entity: NativeEntityModel
   const replicatedFields = fields.filter((field) => field.memberId !== undefined);
   const deltaFields = replicatedFields.map((field) => `    pub ${toNativeSnakeCase(field.name)}: Option<${nativeRustFieldType(field.type)}>,`).join("\n");
   const deltaValues = replicatedFields.map((field) => `        ${toNativeSnakeCase(field.name)}: (dirty_mask & (1u64 << ${field.memberId}) != 0).then_some(${rustFieldPath("value", field)}),`).join("\n");
-  const dirtyAccessors = entity.replicated ? `\n\n#[derive(Debug, Clone, PartialEq)]\npub struct ${entity.name}Delta {\n    pub dirty_mask: u64,\n${deltaFields}\n}\n\npub fn ${snakeName}_dirty_mask(value: &${entity.name}Data) -> u64 { value.__dirty_mask }\n\npub fn take_${snakeName}_dirty_mask(value: &mut ${entity.name}Data) -> u64 { std::mem::take(&mut value.__dirty_mask) }\n\npub fn take_${snakeName}_delta(value: &mut ${entity.name}Data) -> Option<${entity.name}Delta> {\n    let dirty_mask = take_${snakeName}_dirty_mask(value);\n    if dirty_mask == 0 { return None; }\n    Some(${entity.name}Delta {\n        dirty_mask,\n${deltaValues}\n    })\n}` : "";
+  const ackFields = replicatedFields.map((field) => `    if value.__member_revisions[${field.memberId}] <= revision { value.__dirty_mask &= !(1u64 << ${field.memberId}); }`).join("\n");
+  const dirtyAccessors = entity.replicated ? `\n\n#[derive(Debug, Clone, PartialEq)]\npub struct ${entity.name}Delta {\n    pub revision: u64,\n    pub dirty_mask: u64,\n${deltaFields}\n}\n\npub fn ${snakeName}_dirty_mask(value: &${entity.name}Data) -> u64 { value.__dirty_mask }\n\npub fn peek_${snakeName}_delta(value: &${entity.name}Data) -> Option<${entity.name}Delta> {\n    let dirty_mask = value.__dirty_mask;\n    if dirty_mask == 0 { return None; }\n    Some(${entity.name}Delta {\n        revision: value.__revision,\n        dirty_mask,\n${deltaValues}\n    })\n}\n\npub fn ack_${snakeName}_delta(value: &mut ${entity.name}Data, revision: u64) {\n${ackFields}\n}` : "";
   return `${constants}${memberConstants ? `\n${memberConstants}` : ""}\n\n\
 pub fn get_${snakeName}_number(value: &${entity.name}Data, field: u32) -> Option<f64> {\n\
     match field {\n${getters}\n        _ => None,\n    }\n\
@@ -326,8 +329,9 @@ function renderRustStructInit(
   const childPadding = " ".repeat(indent + 4);
   const lines: string[] = [];
   if (entity.replicated) {
-    const mask = entity.fields.reduce((value, field) => field.memberId === undefined ? value : value | (1n << BigInt(field.memberId)), 0n);
-    lines.push(`${childPadding}__dirty_mask: ${mask}u64,`);
+    lines.push(`${childPadding}__dirty_mask: 0u64,`);
+    lines.push(`${childPadding}__revision: 0u64,`);
+    lines.push(`${childPadding}__member_revisions: [0u64; 64],`);
   }
   if (entity.parent) {
     lines.push(`${childPadding}${toNativeSnakeCase(entity.parent)}: ${renderRustStructInit(schema, entity.parent, values, indent + 4)},`);
@@ -452,6 +456,6 @@ function nativeRustFieldType(type: NativeProjectedEntityField["type"]): string {
 function wrapDirtyAssignment(entity: NativeEntityModel, field: NativeProjectedEntityField, target: string, converted: string, validation: string): string {
   const assign = field.memberId === undefined
     ? `${target} = converted;`
-    : `if ${target} != converted { ${target} = converted; value.__dirty_mask |= 1u64 << ${field.memberId}; }`;
+    : `if ${target} != converted { ${target} = converted; value.__revision = value.__revision.wrapping_add(1).max(1); value.__member_revisions[${field.memberId}] = value.__revision; value.__dirty_mask |= 1u64 << ${field.memberId}; }`;
   return `${validation} let converted = ${converted}; ${assign}`;
 }

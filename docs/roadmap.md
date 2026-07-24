@@ -43,7 +43,7 @@
 
 ## Phase 4：发布
 
-> 状态：暂停。当前 `v0.10.0` 作为 TiangZ 项目内部开发工具使用，通过本地 VSIX 安装，不发布到 VS Code Marketplace，也暂不推进公开发布所需的 CI、商店素材和 `1.0.0`。恢复 Phase 4 时再重新确认 Windows/Linux 验收矩阵、发布者认证和隐私说明。
+> 状态：暂停。当前 `v0.12.0` 作为 TiangZ 项目内部开发工具使用，通过本地 VSIX 安装，不发布到 VS Code Marketplace，也暂不推进公开发布所需的 CI、商店素材和 `1.0.0`。恢复 Phase 4 时再重新确认 Windows/Linux 验收矩阵、发布者认证和隐私说明。
 
 - [ ] Windows 与 Linux 扩展测试
 - [ ] Marketplace 图标、README、CHANGELOG 和隐私说明

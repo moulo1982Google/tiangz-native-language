@@ -4,7 +4,7 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
 仓库目标不是只给关键字上色，而是让 TiangZ codegen 与编辑器共用同一套 Parser、AST 和 Validator，避免两套语法实现发生偏差。
 
-当前发布策略：`v0.11.2` 仅作为 TiangZ 内部开发工具，通过本地 VSIX 安装。VS Code Marketplace、公开 CI 与 `1.0.0` 发布计划暂缓，详见[路线图](docs/roadmap.md)。
+当前发布策略：`v0.12.0` 仅作为 TiangZ 内部开发工具，通过本地 VSIX 安装。VS Code Marketplace、公开 CI 与 `1.0.0` 发布计划暂缓，详见[路线图](docs/roadmap.md)。
 
 ## 当前能力
 
@@ -42,7 +42,7 @@ entity Stats extends Entity {
 }
 ```
 
-`@replicated` 会生成 Rust 脏掩码；只有实际变值的 `@memberId(1..63)` 字段会置位。成员编号属于持久协议，不应因字段换序而修改。普通字段不参与该机制，立即消息与有序事件仍由业务协议明确发送。
+`@replicated` 会生成 Rust 脏掩码和字段级 revision；只有实际变值的 `@memberId(1..63)` 字段会置位。生成的 `peek_xxx_delta` 不会提前清脏，发送成功后由 `ack_xxx_delta` 按 revision 确认；发送期间产生的新修改不会被旧 Ack 清除。成员编号属于持久协议，不应因字段换序而修改。普通字段不参与该机制，立即消息与有序事件仍由业务协议明确发送。
 
 ## 本地安装
 
