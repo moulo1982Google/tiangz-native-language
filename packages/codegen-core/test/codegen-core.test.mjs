@@ -80,6 +80,9 @@ test("generates different lifecycle APIs for components and standalone handles",
   assert.match(rust, /pub\(crate\) __dirty_mask: u64/);
   assert.match(rust, /NUMERIC_MEMBER_CURRENT_HP: u32 = 1/);
   assert.match(rust, /take_numeric_dirty_mask/);
+  assert.match(rust, /pub struct NumericDelta/);
+  assert.match(rust, /pub current_hp: Option<i32>/);
+  assert.match(rust, /take_numeric_delta/);
   assert.match(rust, /value\.__dirty_mask \|= 1u64 << 1/);
 });
 

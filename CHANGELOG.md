@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.11.1
+
+- 为 `@replicated` Entity 生成强类型 `XxxDelta` 与 `take_xxx_delta`，按 dirty mask 返回对应 Rust 原生类型，不使用动态 `unknown` 值容器。
+
 ## 0.11.0
 
 - 新增固定字段复制声明：`@replicated` Entity 与稳定的 `@memberId(1..63)` 字段编号。

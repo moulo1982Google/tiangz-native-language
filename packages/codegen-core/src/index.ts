@@ -278,7 +278,10 @@ function renderRustFields(schema: NativeSemanticModel, entity: NativeEntityModel
   const setters = fields.map((field) => field.readonly
     ? `        ${field.fieldId} => Err("native ${entity.name} field ${field.name} is readonly"),`
     : `        ${field.fieldId} => { ${renderRustSetter(entity, field)} Ok(()) },`).join("\n");
-  const dirtyAccessors = entity.replicated ? `\n\npub fn ${snakeName}_dirty_mask(value: &${entity.name}Data) -> u64 { value.__dirty_mask }\n\npub fn take_${snakeName}_dirty_mask(value: &mut ${entity.name}Data) -> u64 { std::mem::take(&mut value.__dirty_mask) }` : "";
+  const replicatedFields = fields.filter((field) => field.memberId !== undefined);
+  const deltaFields = replicatedFields.map((field) => `    pub ${toNativeSnakeCase(field.name)}: Option<${nativeRustFieldType(field.type)}>,`).join("\n");
+  const deltaValues = replicatedFields.map((field) => `        ${toNativeSnakeCase(field.name)}: (dirty_mask & (1u64 << ${field.memberId}) != 0).then_some(${rustFieldPath("value", field)}),`).join("\n");
+  const dirtyAccessors = entity.replicated ? `\n\n#[derive(Debug, Clone, PartialEq)]\npub struct ${entity.name}Delta {\n    pub dirty_mask: u64,\n${deltaFields}\n}\n\npub fn ${snakeName}_dirty_mask(value: &${entity.name}Data) -> u64 { value.__dirty_mask }\n\npub fn take_${snakeName}_dirty_mask(value: &mut ${entity.name}Data) -> u64 { std::mem::take(&mut value.__dirty_mask) }\n\npub fn take_${snakeName}_delta(value: &mut ${entity.name}Data) -> Option<${entity.name}Delta> {\n    let dirty_mask = take_${snakeName}_dirty_mask(value);\n    if dirty_mask == 0 { return None; }\n    Some(${entity.name}Delta {\n        dirty_mask,\n${deltaValues}\n    })\n}` : "";
   return `${constants}${memberConstants ? `\n${memberConstants}` : ""}\n\n\
 pub fn get_${snakeName}_number(value: &${entity.name}Data, field: u32) -> Option<f64> {\n\
     match field {\n${getters}\n        _ => None,\n    }\n\
@@ -432,6 +435,18 @@ function renderRustSetter(entity: NativeEntityModel, field: NativeProjectedEntit
   if (!range) throw new Error(`unsupported native setter field type ${field.type}`);
   const [min, max, type] = range;
   return wrapDirtyAssignment(entity, field, target, `number as ${type}`, `if !number.is_finite() || number.fract() != 0.0 || number < ${min} || number > ${max} { return Err("native ${entity.name} field ${field.name} must be ${field.type}"); }`);
+}
+
+function nativeRustFieldType(type: NativeProjectedEntityField["type"]): string {
+  const types: Record<NativeProjectedEntityField["type"], string> = {
+    u32: "u32",
+    i32: "i32",
+    i8: "i8",
+    f32: "f32",
+  };
+  const result = types[type];
+  if (!result) throw new Error(`unsupported native Rust field type ${type}`);
+  return result;
 }
 
 function wrapDirtyAssignment(entity: NativeEntityModel, field: NativeProjectedEntityField, target: string, converted: string, validation: string): string {
