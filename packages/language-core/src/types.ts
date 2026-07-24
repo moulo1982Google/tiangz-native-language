@@ -47,6 +47,7 @@ export interface NamespaceNode {
 }
 
 export interface FieldDeclarationNode {
+  readonly annotations: readonly AnnotationNode[];
   readonly readonly: boolean;
   readonly name: IdentifierNode;
   readonly type: TypeReferenceNode;
@@ -98,6 +99,7 @@ export interface ParseNativeOptions {
 }
 
 export interface NativeFieldModel {
+  readonly memberId?: number;
   readonly readonly: boolean;
   readonly name: string;
   readonly type: string;
@@ -110,6 +112,7 @@ export interface NativeEntityModel {
   readonly sourceFile: string;
   readonly typeId?: number;
   readonly component: boolean;
+  readonly replicated: boolean;
   readonly abstract: boolean;
   readonly name: string;
   readonly parent?: string;

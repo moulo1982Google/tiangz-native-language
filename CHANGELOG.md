@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.11.0
+
+- 新增固定字段复制声明：`@replicated` Entity 与稳定的 `@memberId(1..63)` 字段编号。
+- Rust 生成结构为复制字段维护 `u64` 脏掩码，只有字段值实际变化时才置位。
+- 生成 `*_dirty_mask`、`take_*_dirty_mask` 和 TypeScript `Native*Member` 常量，业务层不需要使用 `unknown` 承载异构字段。
+- 增加注解约束、重复编号和生成结果回归测试。
+
 ## 0.10.0
 
 - 新增 `@tiangz/native-language-core/codegen`，以纯函数生成 Rust、Host bootstrap 和 TypeScript 文件内容。

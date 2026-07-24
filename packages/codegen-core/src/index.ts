@@ -264,24 +264,28 @@ function renderRustStruct(entity: NativeEntityModel): string {
     if (!type) throw new Error(`unsupported native Rust field type ${field.type}`);
     return `    pub ${toNativeSnakeCase(field.name)}: ${type},`;
   }).join("\n");
-  return `#[derive(Debug, Clone)]\npub struct ${entity.name}Data {\n${parent}${fields}\n}`;
+  const dirtyMask = entity.replicated ? "    pub(crate) __dirty_mask: u64,\n" : "";
+  return `#[derive(Debug, Clone)]\npub struct ${entity.name}Data {\n${dirtyMask}${parent}${fields}\n}`;
 }
 
 function renderRustFields(schema: NativeSemanticModel, entity: NativeEntityModel): string {
   const fields = projectNativeEntityApi(schema, entity).fields;
   const snakeName = toNativeSnakeCase(entity.name);
   const constants = fields.map((field) => `pub const ${field.rustFieldConstant}: u32 = ${field.fieldId};`).join("\n");
+  const memberConstants = fields.filter((field) => field.memberId !== undefined)
+    .map((field) => `pub const ${toNativeScreamingSnakeCase(entity.name)}_MEMBER_${toNativeScreamingSnakeCase(field.name)}: u32 = ${field.memberId};`).join("\n");
   const getters = fields.map((field) => `        ${field.fieldId} => Some(${rustFieldPath("value", field)} as f64),`).join("\n");
   const setters = fields.map((field) => field.readonly
     ? `        ${field.fieldId} => Err("native ${entity.name} field ${field.name} is readonly"),`
     : `        ${field.fieldId} => { ${renderRustSetter(entity, field)} Ok(()) },`).join("\n");
-  return `${constants}\n\n\
+  const dirtyAccessors = entity.replicated ? `\n\npub fn ${snakeName}_dirty_mask(value: &${entity.name}Data) -> u64 { value.__dirty_mask }\n\npub fn take_${snakeName}_dirty_mask(value: &mut ${entity.name}Data) -> u64 { std::mem::take(&mut value.__dirty_mask) }` : "";
+  return `${constants}${memberConstants ? `\n${memberConstants}` : ""}\n\n\
 pub fn get_${snakeName}_number(value: &${entity.name}Data, field: u32) -> Option<f64> {\n\
     match field {\n${getters}\n        _ => None,\n    }\n\
 }\n\n\
 pub fn set_${snakeName}_number(value: &mut ${entity.name}Data, field: u32, number: f64) -> Result<(), &'static str> {\n\
     match field {\n${setters}\n        _ => Err("unknown native ${entity.name} field"),\n    }\n\
-}`;
+}${dirtyAccessors}`;
 }
 
 function renderRustVariantAccessors(entity: NativeEntityModel): string {
@@ -318,6 +322,10 @@ function renderRustStructInit(
   const padding = " ".repeat(indent);
   const childPadding = " ".repeat(indent + 4);
   const lines: string[] = [];
+  if (entity.replicated) {
+    const mask = entity.fields.reduce((value, field) => field.memberId === undefined ? value : value | (1n << BigInt(field.memberId)), 0n);
+    lines.push(`${childPadding}__dirty_mask: ${mask}u64,`);
+  }
   if (entity.parent) {
     lines.push(`${childPadding}${toNativeSnakeCase(entity.parent)}: ${renderRustStructInit(schema, entity.parent, values, indent + 4)},`);
   }
@@ -333,6 +341,9 @@ function renderTypeScript(schema: NativeSemanticModel, entity: NativeEntityModel
   const fieldConstants = fields.filter((field) => field.ownerName === entity.name)
     .map((field) => `  ${toNativePascalCase(field.name)}: ${field.fieldId},`).join("\n");
   const fieldTypes = `export const ${api.fieldTableName} = {\n${fieldConstants}\n} as const;\n\nexport type ${api.fieldTableName} = typeof ${api.fieldTableName}[keyof typeof ${api.fieldTableName}];`;
+  const memberConstants = fields.filter((field) => field.ownerName === entity.name && field.memberId !== undefined)
+    .map((field) => `  ${toNativePascalCase(field.name)}: ${field.memberId},`).join("\n");
+  const memberTypes = memberConstants ? `\n\nexport const Native${entity.name}Member = {\n${memberConstants}\n} as const;\n\nexport type Native${entity.name}Member = typeof Native${entity.name}Member[keyof typeof Native${entity.name}Member];` : "";
   const args = fields.map((field) => `  ${field.name}${field.defaultValue === undefined ? "" : "?"}: number;`).join("\n");
   const values = fields.map((field) => field.defaultValue === undefined
     ? `      args.${field.name},`
@@ -342,13 +353,13 @@ function renderTypeScript(schema: NativeSemanticModel, entity: NativeEntityModel
     return `  get ${field.name}(): number {\n    return NativeOps.EntityGetNumber(this.Handle, ${field.fieldId});\n  }\n${setter}`;
   }).join("\n");
   if (api.lifecycle === "handle") {
-    return renderTypeScriptHandle(entity, api, args, values, properties, fieldTypes, options);
+    return renderTypeScriptHandle(entity, api, args, values, properties, fieldTypes + memberTypes, options);
   }
   return `${options.banner}\n\n\
 import { NativeOps } from "./NativeOps";\n\
 import { Component } from "${options.componentBaseImport}";\n\
 import { component } from "${options.componentDecoratorImport}";\n\n\
-${fieldTypes}\n\n\
+${fieldTypes}${memberTypes}\n\n\
 export interface ${api.createArgsName} {\n${args}\n}\n\n\
 @component()\n\
 export class ${api.refName} extends Component<[args: ${api.createArgsName}]> {\n\
@@ -410,7 +421,7 @@ function rustFieldPath(root: string, field: NativeProjectedEntityField): string 
 function renderRustSetter(entity: NativeEntityModel, field: NativeProjectedEntityField): string {
   const target = rustFieldPath("value", field);
   if (field.type === "f32") {
-    return `if !number.is_finite() || number < f32::MIN as f64 || number > f32::MAX as f64 { return Err("native ${entity.name} field ${field.name} must be a finite f32"); } ${target} = number as f32;`;
+    return wrapDirtyAssignment(entity, field, target, `number as f32`, `if !number.is_finite() || number < f32::MIN as f64 || number > f32::MAX as f64 { return Err("native ${entity.name} field ${field.name} must be a finite f32"); }`);
   }
   const ranges: Record<string, readonly [string, string, string]> = {
     u32: ["0.0", "u32::MAX as f64", "u32"],
@@ -420,5 +431,12 @@ function renderRustSetter(entity: NativeEntityModel, field: NativeProjectedEntit
   const range = ranges[field.type];
   if (!range) throw new Error(`unsupported native setter field type ${field.type}`);
   const [min, max, type] = range;
-  return `if !number.is_finite() || number.fract() != 0.0 || number < ${min} || number > ${max} { return Err("native ${entity.name} field ${field.name} must be ${field.type}"); } ${target} = number as ${type};`;
+  return wrapDirtyAssignment(entity, field, target, `number as ${type}`, `if !number.is_finite() || number.fract() != 0.0 || number < ${min} || number > ${max} { return Err("native ${entity.name} field ${field.name} must be ${field.type}"); }`);
+}
+
+function wrapDirtyAssignment(entity: NativeEntityModel, field: NativeProjectedEntityField, target: string, converted: string, validation: string): string {
+  const assign = field.memberId === undefined
+    ? `${target} = converted;`
+    : `if ${target} != converted { ${target} = converted; value.__dirty_mask |= 1u64 << ${field.memberId}; }`;
+  return `${validation} let converted = ${converted}; ${assign}`;
 }

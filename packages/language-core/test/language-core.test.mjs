@@ -110,6 +110,42 @@ entity Numeric extends Entity {
   assert.equal(numericApi.fields[2].rustFieldConstant, "NUMERIC_FIELD_CURRENT_HP");
 });
 
+test("validates stable member ids for replicated fixed-field entities", () => {
+  const model = assertValidNativeWorkspace([
+    { uri: "Entity.native", text: entitySource },
+    {
+      uri: "Stats.native",
+      text: `namespace demo;
+@typeId(3)
+@replicated
+entity Stats extends Entity {
+  @memberId(1)
+  hp: i32 = 100;
+  @memberId(9)
+  speed: f32 = 1;
+}
+`,
+    },
+  ]);
+  const stats = model.entities.find((entity) => entity.name === "Stats");
+  assert.ok(stats?.replicated);
+  assert.deepEqual(stats.fields.map((field) => field.memberId), [1, 9]);
+  assert.deepEqual(projectNativeEntityApi(model, stats).fields.slice(-2).map((field) => field.memberId), [1, 9]);
+
+  const invalid = analyzeNativeWorkspace([{
+    uri: "Bad.native",
+    text: `namespace demo;
+abstract entity Entity { readonly id: u32; readonly instanceId: u32; }
+@typeId(4)
+entity Bad extends Entity {
+  @memberId(1)
+  value: i32;
+}
+`,
+  }]);
+  assert.ok(invalid.diagnostics.some((diagnostic) => diagnostic.code === "native.semantic.member-id-without-replicated"));
+});
+
 test("finds the smallest available typeId and rejects ambiguous workspaces", () => {
   assert.deepEqual(findNextAvailableTypeId([1, 3, undefined]), { status: "available", typeId: 2 });
   assert.deepEqual(findNextAvailableTypeId([1, 2, 2, 4, 4]), {

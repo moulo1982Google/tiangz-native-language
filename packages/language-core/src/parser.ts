@@ -151,7 +151,9 @@ class NativeParser {
   }
 
   private parseField(): FieldDeclarationNode | undefined {
-    const start = this.current().range;
+    const annotations: AnnotationNode[] = [];
+    while (this.check("@")) annotations.push(this.parseAnnotation());
+    const start = annotations[0]?.range ?? this.current().range;
     const readonly = this.consumeText("readonly") !== undefined;
     if (this.current().kind !== "identifier") {
       this.report("native.parse.field-name", "此处应填写字段名称", this.current().range);
@@ -166,6 +168,7 @@ class NativeParser {
       : undefined;
     const end = this.expectSymbol(";", "native.parse.field-semicolon", "字段声明末尾缺少 ';'");
     return {
+      annotations,
       readonly,
       name,
       type,

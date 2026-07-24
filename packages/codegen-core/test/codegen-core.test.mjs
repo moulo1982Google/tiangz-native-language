@@ -28,7 +28,9 @@ entity Unit extends Entity {
     uri: "Numeric.native",
     text: `namespace demo;
 @typeId(2)
+@replicated
 entity Numeric extends Entity {
+  @memberId(1)
   currentHp: i32 = 100;
 }
 `,
@@ -72,6 +74,13 @@ test("generates different lifecycle APIs for components and standalone handles",
   assert.match(numeric, /Dispose\(\)/);
   assert.doesNotMatch(numeric, /extends Component/);
   assert.match(numeric, /CurrentHp: 3/);
+  assert.match(numeric, /NativeNumericMember/);
+  assert.match(numeric, /CurrentHp: 1/);
+  const rust = files.find((file) => file.relativePath.endsWith("native_data.rs"))?.content ?? "";
+  assert.match(rust, /pub\(crate\) __dirty_mask: u64/);
+  assert.match(rust, /NUMERIC_MEMBER_CURRENT_HP: u32 = 1/);
+  assert.match(rust, /take_numeric_dirty_mask/);
+  assert.match(rust, /value\.__dirty_mask \|= 1u64 << 1/);
 });
 
 test("supports caller-owned output paths and generated banner", () => {

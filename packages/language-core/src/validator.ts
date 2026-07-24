@@ -166,6 +166,10 @@ function validateEntityAnnotations(entry: EntityEntry, diagnostics: NativeDiagno
       if (annotation.arguments.length !== 0) {
         report(diagnostics, entry.document.uri, "native.semantic.component-arguments", "@component 不接受参数", annotation.range);
       }
+    } else if (name === "replicated") {
+      if (annotation.arguments.length !== 0) {
+        report(diagnostics, entry.document.uri, "native.semantic.replicated-arguments", "@replicated 不接受参数", annotation.range);
+      }
     } else if (name) {
       report(diagnostics, entry.document.uri, "native.semantic.unknown-annotation", `未知注解 @${name}`, annotation.name.range);
     }
@@ -174,11 +178,39 @@ function validateEntityAnnotations(entry: EntityEntry, diagnostics: NativeDiagno
 
 function validateEntityFields(entry: EntityEntry, diagnostics: NativeDiagnostic[]): void {
   const names = new Set<string>();
+  const memberIds = new Set<number>();
+  const replicated = hasAnnotation(entry.node, "replicated");
   for (const field of entry.node.fields) {
     if (field.name.name && names.has(field.name.name)) {
       report(diagnostics, entry.document.uri, "native.semantic.duplicate-field", `字段 ${field.name.name} 重复声明`, field.name.range);
     }
     names.add(field.name.name);
+    const memberAnnotations = field.annotations.filter((annotation) => annotation.name.name === "memberId");
+    for (const annotation of field.annotations) {
+      if (annotation.name.name !== "memberId") {
+        report(diagnostics, entry.document.uri, "native.semantic.unknown-field-annotation", `未知字段注解 @${annotation.name.name}`, annotation.name.range);
+      }
+    }
+    if (memberAnnotations.length > 1) {
+      report(diagnostics, entry.document.uri, "native.semantic.duplicate-member-id", `字段 ${field.name.name} 重复声明 @memberId`, memberAnnotations[1]!.range);
+    }
+    const memberAnnotation = memberAnnotations[0];
+    if (memberAnnotation) {
+      const memberId = memberAnnotation.arguments[0]?.value;
+      if (!replicated) {
+        report(diagnostics, entry.document.uri, "native.semantic.member-id-without-replicated", "@memberId 只能用于 @replicated Entity", memberAnnotation.range);
+      }
+      if (field.readonly) {
+        report(diagnostics, entry.document.uri, "native.semantic.readonly-member-id", "readonly 字段不会产生变更，不能声明 @memberId", memberAnnotation.range);
+      }
+      if (memberAnnotation.arguments.length !== 1 || !Number.isSafeInteger(memberId) || memberId! < 1 || memberId! > 63) {
+        report(diagnostics, entry.document.uri, "native.semantic.invalid-member-id", "@memberId 必须且只能包含 1..63 的整数参数", memberAnnotation.range);
+      } else if (memberIds.has(memberId!)) {
+        report(diagnostics, entry.document.uri, "native.semantic.duplicate-member-id", `@memberId(${memberId}) 在 ${entry.node.name.name} 中重复`, memberAnnotation.range);
+      } else {
+        memberIds.add(memberId!);
+      }
+    }
     if (!ENTITY_FIELD_TYPES.has(field.type.name)) {
       report(diagnostics, entry.document.uri, "native.semantic.invalid-field-type", `不支持的 Entity 字段类型 ${field.type.name}`, field.type.range);
       continue;
@@ -355,18 +387,28 @@ function toEntityModel(entry: EntityEntry): NativeEntityModel {
     sourceFile: entry.document.uri,
     ...(typeId !== undefined ? { typeId } : {}),
     component: hasAnnotation(entry.node, "component"),
+    replicated: hasAnnotation(entry.node, "replicated"),
     abstract: entry.node.abstract,
     name: entry.node.name.name,
     ...(entry.node.parent ? { parent: entry.node.parent.name } : {}),
-    fields: entry.node.fields.map((field) => ({
-      readonly: field.readonly,
-      name: field.name.name,
-      type: field.type.name,
-      ...(field.defaultValue ? { defaultValue: field.defaultValue.raw } : {}),
-      range: field.range,
-    })),
+    fields: entry.node.fields.map((field) => {
+      const memberId = readMemberId(field);
+      return {
+        ...(memberId !== undefined ? { memberId } : {}),
+        readonly: field.readonly,
+        name: field.name.name,
+        type: field.type.name,
+        ...(field.defaultValue ? { defaultValue: field.defaultValue.raw } : {}),
+        range: field.range,
+      };
+    }),
     range: entry.node.range,
   };
+}
+
+function readMemberId(field: FieldDeclarationNode): number | undefined {
+  const value = field.annotations.find((annotation) => annotation.name.name === "memberId")?.arguments[0]?.value;
+  return Number.isSafeInteger(value) ? value : undefined;
 }
 
 function toOperationModel(entry: OperationEntry): NativeOperationModel {
