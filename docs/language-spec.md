@@ -1,4 +1,4 @@
-# `.native` 语言规范 0.1
+# `.native` 语言规范 0.2
 
 本文档描述 TiangZ 当前已经被 codegen 接受的语法。新增语法必须先更新共享 Parser 和本文档，再修改生成器与编辑器能力。
 
@@ -20,8 +20,9 @@ identifier      = letter | "_", { letter | digit | "_" } ;
 ```ebnf
 entityDecl      = { annotation }, [ "abstract" ], "entity", identifier,
                   [ "extends", identifier ], "{", { fieldDecl }, "}" ;
-annotation      = "@typeId", "(", integer, ")" | "@component" ;
-fieldDecl       = [ "readonly" ], identifier, ":", entityScalar,
+annotation      = "@typeId", "(", integer, ")" | "@component" | "@replicated" ;
+fieldAnnotation = "@memberId", "(", integer, ")" ;
+fieldDecl       = { fieldAnnotation }, [ "readonly" ], identifier, ":", entityScalar,
                   [ "=", number ], ";" ;
 entityScalar    = "u32" | "i32" | "i8" | "f32" ;
 ```
@@ -36,6 +37,8 @@ entityScalar    = "u32" | "i32" | "i8" | "f32" ;
 - 字段名在继承链中不能重复。
 - 整数默认值必须是整数且位于对应类型范围内。
 - `f32` 默认值必须是有限数值。
+- `@memberId(1..63)` 只能出现在 `@replicated` Entity 的可写字段上，同一 Entity 内必须唯一。
+- `memberId` 对应生成的 `u64` dirty mask bit，是稳定复制契约；普通跨 V8 字段编号仍由完整继承字段顺序生成，两者用途不同。
 
 `namespace` 已进入语法，但 0.1 的实体名、typeId 和 op 名仍按整个项目全局唯一处理，暂不以命名空间隔离。
 
@@ -63,4 +66,3 @@ MapUpdateMovement -> op_native_map_update_movement
 - 新增关键字、类型或可选语法属于向后兼容扩展。
 - 删除或改变既有语义需要提升语言版本。
 - 编辑器与 codegen 必须依赖同一版本的 `@tiangz/native-language-core`。
-

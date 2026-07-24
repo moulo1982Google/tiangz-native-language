@@ -211,6 +211,17 @@ connection.onSignatureHelp((params): SignatureHelp | null => {
       activeParameter: 0,
     };
   }
+  if (/@memberId\s*\([^)]*$/.test(linePrefix)) {
+    return {
+      signatures: [{
+        label: "@memberId(id: integer)",
+        documentation: "为 @replicated Entity 的字段分配稳定复制编号，范围为 1..63。",
+        parameters: [{ label: "id: integer", documentation: "对应 u64 dirty mask 的 bit；发布后不要因字段换序而修改。" }],
+      }],
+      activeSignature: 0,
+      activeParameter: 0,
+    };
+  }
 
   const operationMatch = /\bop\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)$/.exec(linePrefix);
   if (!operationMatch) return null;
@@ -416,6 +427,8 @@ function annotationCompletions(): CompletionItem[] {
   return [
     { label: "typeId", detail: "为具体 Entity 分配全局唯一类型编号", kind: CompletionItemKind.Property, insertText: "typeId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
     { label: "component", detail: "将 Entity 标记为 Component", kind: CompletionItemKind.Property },
+    { label: "replicated", detail: "为固定字段 Entity 生成帧尾脏掩码和强类型 Delta", kind: CompletionItemKind.Property },
+    { label: "memberId", detail: "为复制字段分配稳定的 1..63 成员编号", kind: CompletionItemKind.Property, insertText: "memberId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
   ];
 }
 
@@ -509,6 +522,7 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
     `- **命名空间**：${markdownCode(entity.namespace || "（未声明）")}`,
     `- **类型编号**：${entity.typeId === undefined ? "无（抽象实体不生成 typeId）" : markdownCode(String(entity.typeId))}`,
     `- **父实体**：${entity.parent ? markdownCode(entity.parent) : "无"}`,
+    `- **帧尾复制**：${entity.replicated ? "已启用，将生成 dirty mask 和强类型 Delta" : "未启用"}`,
     `- **字段**：本级 ${ownFieldCount} 个，继承 ${inheritedFieldCount} 个，共 ${flattenedFields.length} 个`,
   ];
   if (flattenedFields.length > 0) {
@@ -545,6 +559,7 @@ function describeFieldModel(entity: NativeEntityModel, field: NativeFieldModel, 
     `- **可写性**：${field.readonly ? "只读，创建后不能通过通用 setter 修改" : "可读写"}`,
     `- **默认值**：${field.defaultValue === undefined ? "未声明" : markdownCode(field.defaultValue)}`,
     `- **字段编号**：${fieldNumber === undefined ? "无法计算" : markdownCode(String(fieldNumber))}${fieldConstant ? `（Rust 常量 ${markdownCode(fieldConstant)}）` : ""}`,
+    `- **复制 MemberId**：${field.memberId === undefined ? "未参与固定字段脏同步" : `${markdownCode(String(field.memberId))}（dirty mask bit ${field.memberId}）`}`,
     `- **Rust 实际成员**：${rustMember ? markdownCode(rustMember) : "未生成"}`,
   ];
   if (tsProperty && fieldNumber !== undefined) {

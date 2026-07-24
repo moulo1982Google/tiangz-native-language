@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.11.2
+
+- 为 `@replicated`、`@memberId` 增加补全、参数提示和中文 Hover 说明。
+- 更新 `.native` 0.2 语言规范，明确 MemberId 与跨 V8 字段编号的区别。
+
 ## 0.11.1
 
 - 为 `@replicated` Entity 生成强类型 `XxxDelta` 与 `take_xxx_delta`，按 dirty mask 返回对应 Rust 原生类型，不使用动态 `unknown` 值容器。
