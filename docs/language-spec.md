@@ -21,7 +21,7 @@ identifier      = letter | "_", { letter | digit | "_" } ;
 entityDecl      = { annotation }, [ "abstract" ], "entity", identifier,
                   [ "extends", identifier ], "{", { fieldDecl }, "}" ;
 annotation      = "@typeId", "(", integer, ")" | "@component" | "@replicated" ;
-fieldAnnotation = "@memberId", "(", integer, ")" ;
+fieldAnnotation = "@memberId", "(", integer, ")" | "@hot" | "@cold" ;
 fieldDecl       = { fieldAnnotation }, [ "readonly" ], identifier, ":", entityScalar,
                   [ "=", number ], ";" ;
 entityScalar    = "u32" | "i32" | "i8" | "f32" ;
@@ -40,6 +40,8 @@ entityScalar    = "u32" | "i32" | "i8" | "f32" ;
 - `@memberId(1..63)` 只能出现在 `@replicated` Entity 的可写字段上，同一 Entity 内必须唯一。
 - `memberId` 对应生成的 `u64` dirty mask bit，是稳定复制契约；普通跨 V8 字段编号仍由完整继承字段顺序生成，两者用途不同。
 - 固定字段 Delta 使用 `peek_xxx_delta` 读取当前值与 revision，只有发送成功后才调用 `ack_xxx_delta`。Ack 逐字段比较 revision，不会误清除并发产生的新修改。
+- `@hot` 表示字段会进入高频批处理工作集，`@cold` 表示字段只在低频业务路径访问；二者不接受参数且不能同时用于同一字段。
+- 只要具体 Entity 的继承字段中存在 `@hot` 或 `@cold`，codegen 就额外生成 `XxxHotData`、`XxxColdData` 和 `XxxSplitData` 候选布局。未标记字段留在默认布局，同时在Split候选中按冷字段处理。冷热标记属于Model/Native schema，修改后必须完整构建并重启进程，不能热更。
 
 `namespace` 已进入语法，但 0.1 的实体名、typeId 和 op 名仍按整个项目全局唯一处理，暂不以命名空间隔离。
 

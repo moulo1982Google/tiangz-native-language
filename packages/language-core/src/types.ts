@@ -100,6 +100,7 @@ export interface ParseNativeOptions {
 
 export interface NativeFieldModel {
   readonly memberId?: number;
+  readonly storage: "default" | "hot" | "cold";
   readonly readonly: boolean;
   readonly name: string;
   readonly type: string;

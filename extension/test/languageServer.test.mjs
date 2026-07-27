@@ -80,6 +80,12 @@ entity Unit extends Entity {
       position: { line: 8, character: 9 },
     });
     assert.ok(completion.some((item) => item.label === "u32"));
+    const annotationCompletion = await rpc.request("textDocument/completion", {
+      textDocument: { uri: entityUri },
+      position: { line: 5, character: 1 },
+    });
+    assert.ok(annotationCompletion.some((item) => item.label === "hot"));
+    assert.ok(annotationCompletion.some((item) => item.label === "cold"));
 
     const hover = await rpc.request("textDocument/hover", {
       textDocument: { uri: entityUri },
@@ -89,6 +95,7 @@ entity Unit extends Entity {
     assert.match(hover.contents.value, /### Component 实体 `Unit`/);
     assert.match(hover.contents.value, /\*\*类型编号\*\*：`1`/);
     assert.match(hover.contents.value, /完整字段顺序.*`id`.*`instanceId`.*`value`/);
+    assert.match(hover.contents.value, /存储布局.*保持默认布局/);
     assert.match(hover.contents.value, /实体数据实际保存在 Rust 侧/);
     assert.match(hover.contents.value, /UnitData/);
     assert.match(hover.contents.value, /NativeUnitRef/);
@@ -110,6 +117,7 @@ entity Unit extends Entity {
     assert.match(fieldHover.contents.value, /NativeUnitRef\.value/);
     assert.match(fieldHover.contents.value, /\*\*字段编号\*\*：`3`/);
     assert.match(fieldHover.contents.value, /Rust 实际成员/);
+    assert.match(fieldHover.contents.value, /存储温度.*默认/);
     assert.match(fieldHover.contents.value, /字段编号只负责跨 V8 边界定位/);
     assert.match(fieldHover.contents.value, /\*\*字段使用示例\*\*/);
     assert.match(fieldHover.contents.value, /unit\.value \+= 1/);

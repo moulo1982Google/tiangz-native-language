@@ -6,6 +6,7 @@ import type {
   NativeDiagnostic,
   NativeDocument,
   NativeEntityModel,
+  NativeFieldModel,
   NativeOperationModel,
   NativeSemanticModel,
   NativeSource,
@@ -186,8 +187,11 @@ function validateEntityFields(entry: EntityEntry, diagnostics: NativeDiagnostic[
     }
     names.add(field.name.name);
     const memberAnnotations = field.annotations.filter((annotation) => annotation.name.name === "memberId");
+    const storageAnnotations = field.annotations.filter((annotation) =>
+      annotation.name.name === "hot" || annotation.name.name === "cold"
+    );
     for (const annotation of field.annotations) {
-      if (annotation.name.name !== "memberId") {
+      if (annotation.name.name !== "memberId" && annotation.name.name !== "hot" && annotation.name.name !== "cold") {
         report(diagnostics, entry.document.uri, "native.semantic.unknown-field-annotation", `未知字段注解 @${annotation.name.name}`, annotation.name.range);
       }
     }
@@ -210,6 +214,26 @@ function validateEntityFields(entry: EntityEntry, diagnostics: NativeDiagnostic[
       } else {
         memberIds.add(memberId!);
       }
+    }
+    for (const annotation of storageAnnotations) {
+      if (annotation.arguments.length !== 0) {
+        report(
+          diagnostics,
+          entry.document.uri,
+          "native.semantic.storage-arguments",
+          `@${annotation.name.name} 不接受参数`,
+          annotation.range,
+        );
+      }
+    }
+    if (storageAnnotations.length > 1) {
+      report(
+        diagnostics,
+        entry.document.uri,
+        "native.semantic.conflicting-storage",
+        `字段 ${field.name.name} 只能声明一个 @hot 或 @cold`,
+        storageAnnotations[1]!.range,
+      );
     }
     if (!ENTITY_FIELD_TYPES.has(field.type.name)) {
       report(diagnostics, entry.document.uri, "native.semantic.invalid-field-type", `不支持的 Entity 字段类型 ${field.type.name}`, field.type.range);
@@ -393,8 +417,10 @@ function toEntityModel(entry: EntityEntry): NativeEntityModel {
     ...(entry.node.parent ? { parent: entry.node.parent.name } : {}),
     fields: entry.node.fields.map((field) => {
       const memberId = readMemberId(field);
+      const storage = readFieldStorage(field);
       return {
         ...(memberId !== undefined ? { memberId } : {}),
+        storage,
         readonly: field.readonly,
         name: field.name.name,
         type: field.type.name,
@@ -409,6 +435,12 @@ function toEntityModel(entry: EntityEntry): NativeEntityModel {
 function readMemberId(field: FieldDeclarationNode): number | undefined {
   const value = field.annotations.find((annotation) => annotation.name.name === "memberId")?.arguments[0]?.value;
   return Number.isSafeInteger(value) ? value : undefined;
+}
+
+function readFieldStorage(field: FieldDeclarationNode): NativeFieldModel["storage"] {
+  if (field.annotations.some((annotation) => annotation.name.name === "hot")) return "hot";
+  if (field.annotations.some((annotation) => annotation.name.name === "cold")) return "cold";
+  return "default";
 }
 
 function toOperationModel(entry: OperationEntry): NativeOperationModel {

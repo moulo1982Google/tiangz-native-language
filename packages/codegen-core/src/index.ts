@@ -81,6 +81,10 @@ function renderRust(schema: NativeSemanticModel, options: ResolvedOptions): stri
   const entities = schema.entities.map(renderRustStruct).join("\n\n");
   const concrete = schema.entities.filter((entity) => !entity.abstract)
     .sort((left, right) => (left.typeId ?? 0) - (right.typeId ?? 0));
+  const splitLayouts = concrete
+    .map((entity) => renderRustSplitLayout(schema, entity))
+    .filter((layout) => layout.length > 0)
+    .join("\n\n");
   const typeConstants = concrete
     .map((entity) => `pub const ENTITY_TYPE_${toNativeScreamingSnakeCase(entity.name)}: u32 = ${entity.typeId};`)
     .join("\n");
@@ -99,6 +103,7 @@ function renderRust(schema: NativeSemanticModel, options: ResolvedOptions): stri
     .join("\n");
   return `${options.banner}\n#![allow(dead_code)]\n\n\
 ${entities}\n\n\
+${splitLayouts}${splitLayouts ? "\n\n" : ""}\
 ${typeConstants}\n\n\
 ${fieldSections}\n\n\
 #[derive(Debug, Clone)]\n\
@@ -268,6 +273,56 @@ function renderRustStruct(entity: NativeEntityModel): string {
     ? "    pub(crate) __dirty_mask: u64,\n    pub(crate) __revision: u64,\n    pub(crate) __member_revisions: [u64; 64],\n"
     : "";
   return `#[derive(Debug, Clone)]\npub struct ${entity.name}Data {\n${dirtyState}${parent}${fields}\n}`;
+}
+
+function renderRustSplitLayout(schema: NativeSemanticModel, entity: NativeEntityModel): string {
+  const fields = projectNativeEntityApi(schema, entity).fields;
+  if (!fields.some((field) => field.storage !== "default")) return "";
+  const hotFields = fields.filter((field) => field.storage === "hot");
+  const coldFields = fields.filter((field) => field.storage !== "hot");
+  const renderFields = (selected: readonly NativeProjectedEntityField[]) => selected
+    .map((field) => `    pub ${toNativeSnakeCase(field.name)}: ${nativeRustFieldType(field.type)},`)
+    .join("\n");
+  const dirtyState = entity.replicated
+    ? "    pub(crate) __dirty_mask: u64,\n    pub(crate) __revision: u64,\n    pub(crate) __member_revisions: [u64; 64],\n"
+    : "";
+  const hotInit = hotFields
+    .map((field) => `            ${toNativeSnakeCase(field.name)}: ${rustFieldPath("value", field)},`)
+    .join("\n");
+  const coldInit = coldFields
+    .map((field) => `            ${toNativeSnakeCase(field.name)}: ${rustFieldPath("value", field)},`)
+    .join("\n");
+  const dirtyInit = entity.replicated
+    ? "            __dirty_mask: value.__dirty_mask,\n            __revision: value.__revision,\n            __member_revisions: value.__member_revisions,\n"
+    : "";
+  return `#[derive(Debug, Clone)]
+pub struct ${entity.name}HotData {
+${renderFields(hotFields)}
+}
+
+#[derive(Debug, Clone)]
+pub struct ${entity.name}ColdData {
+${dirtyState}${renderFields(coldFields)}
+}
+
+#[derive(Debug, Clone)]
+pub struct ${entity.name}SplitData {
+    pub hot: ${entity.name}HotData,
+    pub cold: ${entity.name}ColdData,
+}
+
+impl From<${entity.name}Data> for ${entity.name}SplitData {
+    fn from(value: ${entity.name}Data) -> Self {
+        Self {
+            hot: ${entity.name}HotData {
+${hotInit}
+            },
+            cold: ${entity.name}ColdData {
+${dirtyInit}${coldInit}
+            },
+        }
+    }
+}`;
 }
 
 function renderRustFields(schema: NativeSemanticModel, entity: NativeEntityModel): string {

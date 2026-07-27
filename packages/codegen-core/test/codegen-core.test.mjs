@@ -20,6 +20,7 @@ abstract entity Entity {
 @typeId(1)
 @component
 entity Unit extends Entity {
+  @hot
   x: f32 = 0;
 }
 `,
@@ -89,6 +90,12 @@ test("generates different lifecycle APIs for components and standalone handles",
   assert.match(rust, /value\.__dirty_mask \|= 1u64 << 1/);
   assert.match(rust, /value\.__member_revisions\[1\] = value\.__revision/);
   assert.match(rust, /__dirty_mask: 0u64/);
+  assert.match(rust, /pub struct UnitHotData/);
+  assert.match(rust, /pub x: f32/);
+  assert.match(rust, /pub struct UnitColdData/);
+  assert.match(rust, /pub id: u32/);
+  assert.match(rust, /pub struct UnitSplitData/);
+  assert.match(rust, /impl From<UnitData> for UnitSplitData/);
 });
 
 test("supports caller-owned output paths and generated banner", () => {

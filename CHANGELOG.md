@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.13.0
+
+- 字段新增`@hot`与`@cold`存储温度标记，语言服务提供中文补全、诊断和Hover说明。
+- codegen为存在冷热标记的具体Entity额外生成`XxxHotData`、`XxxColdData`和`XxxSplitData`，同时保留既有`XxxData`与TS Handle API。
+- 冷热标记进入共享语义模型和字段投影，主工程基准不需要手写另一份Rust数据结构。
+
 ## 0.12.0
 
 - 固定字段复制由提取即清除改为 `peek_xxx_delta` / `ack_xxx_delta` 两阶段确认。

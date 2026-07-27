@@ -429,6 +429,8 @@ function annotationCompletions(): CompletionItem[] {
     { label: "component", detail: "将 Entity 标记为 Component", kind: CompletionItemKind.Property },
     { label: "replicated", detail: "为固定字段 Entity 生成帧尾脏掩码和强类型 Delta", kind: CompletionItemKind.Property },
     { label: "memberId", detail: "为复制字段分配稳定的 1..63 成员编号", kind: CompletionItemKind.Property, insertText: "memberId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
+    { label: "hot", detail: "将字段标记为高频访问数据，供 Rust 热池布局生成", kind: CompletionItemKind.Property },
+    { label: "cold", detail: "将字段标记为低频访问数据，供 Rust 冷池布局生成", kind: CompletionItemKind.Property },
   ];
 }
 
@@ -514,6 +516,8 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
   const flattenedFields = api.fields;
   const ownFieldCount = entity.fields.length;
   const inheritedFieldCount = Math.max(0, flattenedFields.length - ownFieldCount);
+  const hotFieldCount = flattenedFields.filter((field) => field.storage === "hot").length;
+  const coldFieldCount = flattenedFields.filter((field) => field.storage === "cold").length;
   const lines = [
     `### ${kind} ${markdownCode(entity.name)}`,
     "",
@@ -524,6 +528,7 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
     `- **父实体**：${entity.parent ? markdownCode(entity.parent) : "无"}`,
     `- **帧尾复制**：${entity.replicated ? "已启用，将生成 dirty mask 和强类型 Delta" : "未启用"}`,
     `- **字段**：本级 ${ownFieldCount} 个，继承 ${inheritedFieldCount} 个，共 ${flattenedFields.length} 个`,
+    `- **存储布局**：显式热字段 ${hotFieldCount} 个，显式冷字段 ${coldFieldCount} 个${hotFieldCount + coldFieldCount > 0 ? "；codegen 将额外生成 Hot/Cold 候选布局" : "；保持默认布局"}`,
   ];
   if (flattenedFields.length > 0) {
     lines.push(`- **完整字段顺序**：${describeFieldOrder(flattenedFields)}`);
@@ -560,6 +565,7 @@ function describeFieldModel(entity: NativeEntityModel, field: NativeFieldModel, 
     `- **默认值**：${field.defaultValue === undefined ? "未声明" : markdownCode(field.defaultValue)}`,
     `- **字段编号**：${fieldNumber === undefined ? "无法计算" : markdownCode(String(fieldNumber))}${fieldConstant ? `（Rust 常量 ${markdownCode(fieldConstant)}）` : ""}`,
     `- **复制 MemberId**：${field.memberId === undefined ? "未参与固定字段脏同步" : `${markdownCode(String(field.memberId))}（dirty mask bit ${field.memberId}）`}`,
+    `- **存储温度**：${field.storage === "hot" ? "热字段；高频批处理应只遍历 Hot Pool" : field.storage === "cold" ? "冷字段；不进入高频扫描工作集" : "默认；保持普通 Entity 布局"}`,
     `- **Rust 实际成员**：${rustMember ? markdownCode(rustMember) : "未生成"}`,
   ];
   if (tsProperty && fieldNumber !== undefined) {

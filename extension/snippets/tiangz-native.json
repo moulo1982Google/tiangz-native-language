@@ -33,5 +33,21 @@
       "op ${1:Operation}(${2:value}: ${3:u32}): ${4:void};"
     ],
     "description": "声明 Native Host 操作"
+  },
+  "热字段": {
+    "prefix": "hot",
+    "body": [
+      "@hot",
+      "${1:value}: ${2:f32} = ${3:0};"
+    ],
+    "description": "声明进入Rust高频批处理工作集的字段"
+  },
+  "冷字段": {
+    "prefix": "cold",
+    "body": [
+      "@cold",
+      "${1:value}: ${2:u32} = ${3:0};"
+    ],
+    "description": "声明不进入高频扫描工作集的低频字段"
   }
 }

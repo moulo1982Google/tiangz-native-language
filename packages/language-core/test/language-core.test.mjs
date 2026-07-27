@@ -146,6 +146,45 @@ entity Bad extends Entity {
   assert.ok(invalid.diagnostics.some((diagnostic) => diagnostic.code === "native.semantic.member-id-without-replicated"));
 });
 
+test("validates and projects hot/cold field storage", () => {
+  const model = assertValidNativeWorkspace([{
+    uri: "Entity.native",
+    text: `namespace demo;
+abstract entity Entity { readonly id: u32; readonly instanceId: u32; }
+@typeId(7)
+entity Unit extends Entity {
+  @hot
+  x: f32 = 0;
+  @cold
+  readonly mapId: u32;
+}
+`,
+  }]);
+  const unit = model.entities.find((entity) => entity.name === "Unit");
+  assert.ok(unit);
+  assert.deepEqual(unit.fields.map((field) => field.storage), ["hot", "cold"]);
+  assert.deepEqual(projectNativeEntityApi(model, unit).fields.map((field) => field.storage), [
+    "default",
+    "default",
+    "hot",
+    "cold",
+  ]);
+
+  const invalid = analyzeNativeWorkspace([{
+    uri: "Invalid.native",
+    text: `namespace demo;
+abstract entity Entity { readonly id: u32; readonly instanceId: u32; }
+@typeId(8)
+entity Invalid extends Entity {
+  @hot
+  @cold
+  value: u32;
+}
+`,
+  }]);
+  assert.ok(invalid.diagnostics.some((diagnostic) => diagnostic.code === "native.semantic.conflicting-storage"));
+});
+
 test("finds the smallest available typeId and rejects ambiguous workspaces", () => {
   assert.deepEqual(findNextAvailableTypeId([1, 3, undefined]), { status: "available", typeId: 2 });
   assert.deepEqual(findNextAvailableTypeId([1, 2, 2, 4, 4]), {

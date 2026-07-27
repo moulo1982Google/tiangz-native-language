@@ -44,6 +44,8 @@ entity Stats extends Entity {
 
 `@replicated` 会生成 Rust 脏掩码和字段级 revision；只有实际变值的 `@memberId(1..63)` 字段会置位。生成的 `peek_xxx_delta` 不会提前清脏，发送成功后由 `ack_xxx_delta` 按 revision 确认；发送期间产生的新修改不会被旧 Ack 清除。成员编号属于持久协议，不应因字段换序而修改。普通字段不参与该机制，立即消息与有序事件仍由业务协议明确发送。
 
+高频批处理实体可以在字段上使用`@hot`和`@cold`。codegen会保留现有`XxxData`兼容布局，并额外生成`XxxHotData`、`XxxColdData`和`XxxSplitData`，供主工程用同一份schema验证类型分池与冷热分离。未标记字段在Split候选中按冷数据处理；冷热标记改变Rust数据布局，不能热更。
+
 ## 本地安装
 
 ```powershell
