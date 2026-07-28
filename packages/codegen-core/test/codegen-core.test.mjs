@@ -19,7 +19,9 @@ abstract entity Entity {
     text: `namespace demo;
 @typeId(1)
 @component
+@replicated
 entity Unit extends Entity {
+  @memberId(1)
   @hot
   x: f32 = 0;
 }
@@ -68,16 +70,22 @@ test("generates different lifecycle APIs for components and standalone handles",
 
   assert.match(unit, /extends Component/);
   assert.match(unit, /protected override Awake/);
+  assert.match(unit, /TrackNativeRefCreated\("Unit"\)/);
+  assert.match(unit, /TrackNativeRefDestroyed\("Unit"\)/);
   assert.doesNotMatch(unit, /static Create/);
   assert.doesNotMatch(unit, /Dispose\(\)/);
 
   assert.match(numeric, /static Create/);
   assert.match(numeric, /Dispose\(\)/);
+  assert.match(numeric, /TrackNativeRefCreated\("Numeric"\)/);
+  assert.match(numeric, /TrackNativeRefDestroyed\("Numeric"\)/);
   assert.doesNotMatch(numeric, /extends Component/);
   assert.match(numeric, /CurrentHp: 3/);
   assert.match(numeric, /NativeNumericMember/);
   assert.match(numeric, /CurrentHp: 1/);
   const rust = files.find((file) => file.relativePath.endsWith("native_data.rs"))?.content ?? "";
+  const ops = files.find((file) => file.relativePath.endsWith("NativeOps.ts"))?.content ?? "";
+  assert.match(ops, /NativeRefMetrics\(\): NativeRefMetrics/);
   assert.match(rust, /pub\(crate\) __dirty_mask: u64/);
   assert.match(rust, /NUMERIC_MEMBER_CURRENT_HP: u32 = 1/);
   assert.match(rust, /pub\(crate\) __member_revisions: \[u64; 64\]/);
@@ -96,6 +104,16 @@ test("generates different lifecycle APIs for components and standalone handles",
   assert.match(rust, /pub id: u32/);
   assert.match(rust, /pub struct UnitSplitData/);
   assert.match(rust, /impl From<UnitData> for UnitSplitData/);
+  assert.match(rust, /pub enum NativePoolLocation/);
+  assert.match(rust, /pub struct NativeEntityPools/);
+  assert.match(rust, /pub fn get_unit_hot\(/);
+  assert.match(rust, /pub fn get_unit_cold\(/);
+  assert.match(rust, /pub fn get_unit_parts\(/);
+  assert.match(rust, /pub fn get_unit_split_number\(/);
+  assert.match(rust, /pub fn set_unit_split_number\(/);
+  assert.match(rust, /pub fn peek_unit_split_delta\(/);
+  assert.match(rust, /pub fn ack_unit_split_delta\(/);
+  assert.match(rust, /pub fn estimated_capacity_bytes\(/);
 });
 
 test("supports caller-owned output paths and generated banner", () => {

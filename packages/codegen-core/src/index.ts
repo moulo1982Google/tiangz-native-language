@@ -101,6 +101,7 @@ function renderRust(schema: NativeSemanticModel, options: ResolvedOptions): stri
   const setterMatches = concrete
     .map((entity) => `        NativeEntityData::${entity.name}(value) => set_${toNativeSnakeCase(entity.name)}_number(value, field, number),`)
     .join("\n");
+  const pools = renderRustPools(schema, concrete);
   return `${options.banner}\n#![allow(dead_code)]\n\n\
 ${entities}\n\n\
 ${splitLayouts}${splitLayouts ? "\n\n" : ""}\
@@ -124,6 +125,7 @@ pub fn get_entity_number(value: &NativeEntityData, field: u32) -> Option<f64> {\
 pub fn set_entity_number(value: &mut NativeEntityData, field: u32, number: f64) -> Result<(), &'static str> {\n\
     match value {\n${setterMatches}\n    }\n\
 }\n\n\
+${pools}\n\n\
 fn read_number(values: &[f64], index: usize) -> Result<f64, &'static str> {\n\
     values.get(index).copied().ok_or("native entity create values are truncated")\n\
 }\n\n\
@@ -232,6 +234,7 @@ function renderTypeScriptOps(schema: NativeSemanticModel, options: ResolvedOptio
   }).join("\n\n");
   return `${options.banner}\n\n\
 export interface NativeHostOpsApi {\n${interfaceMethods}\n}\n\n\
+export type NativeRefMetrics = Readonly<Record<string, number>>;\n\n\
 function nativeHostOps(): NativeHostOpsApi {\n\
   const host = (globalThis as typeof globalThis & {\n\
     __etsNativeOps?: NativeHostOpsApi;\n\
@@ -239,7 +242,21 @@ function nativeHostOps(): NativeHostOpsApi {\n\
   if (!host) throw new Error("native host ops are not installed");\n\
   return host;\n\
 }\n\n\
-export class NativeOps {\n${facadeMethods}\n}\n`;
+export class NativeOps {\n\
+  private static readonly nativeRefCounts = new Map<string, number>();\n\n\
+  static TrackNativeRefCreated(entityType: string): void {\n\
+    this.nativeRefCounts.set(entityType, (this.nativeRefCounts.get(entityType) ?? 0) + 1);\n\
+  }\n\n\
+  static TrackNativeRefDestroyed(entityType: string): void {\n\
+    const next = (this.nativeRefCounts.get(entityType) ?? 0) - 1;\n\
+    if (next < 0) throw new Error("native " + entityType + " ref count became negative");\n\
+    if (next === 0) this.nativeRefCounts.delete(entityType);\n\
+    else this.nativeRefCounts.set(entityType, next);\n\
+  }\n\n\
+  static NativeRefMetrics(): NativeRefMetrics {\n\
+    return Object.freeze(Object.fromEntries(this.nativeRefCounts));\n\
+  }\n\n\
+${facadeMethods}\n}\n`;
 }
 
 function renderBootstrapArgument(parameter: NativeOperationParameterModel): string {
@@ -295,6 +312,36 @@ function renderRustSplitLayout(schema: NativeSemanticModel, entity: NativeEntity
   const dirtyInit = entity.replicated
     ? "            __dirty_mask: value.__dirty_mask,\n            __revision: value.__revision,\n            __member_revisions: value.__member_revisions,\n"
     : "";
+  const snakeName = toNativeSnakeCase(entity.name);
+  const splitGetters = fields.map((field) =>
+    `        ${field.fieldId} => Some(${rustSplitFieldPath("hot", "cold", field)} as f64),`
+  ).join("\n");
+  const splitSetters = fields.map((field) => field.readonly
+    ? `        ${field.fieldId} => Err("native ${entity.name} field ${field.name} is readonly"),`
+    : `        ${field.fieldId} => { ${renderRustSplitSetter(entity, field)} Ok(()) },`
+  ).join("\n");
+  const replicatedFields = fields.filter((field) => field.memberId !== undefined);
+  const splitDeltaValues = replicatedFields.map((field) =>
+    `        ${toNativeSnakeCase(field.name)}: (dirty_mask & (1u64 << ${field.memberId}) != 0).then_some(${rustSplitFieldPath("hot", "cold", field)}),`
+  ).join("\n");
+  const splitAckFields = replicatedFields.map((field) =>
+    `    if cold.__member_revisions[${field.memberId}] <= revision { cold.__dirty_mask &= !(1u64 << ${field.memberId}); }`
+  ).join("\n");
+  const splitDirtyAccessors = entity.replicated ? `
+
+pub fn peek_${snakeName}_split_delta(hot: &${entity.name}HotData, cold: &${entity.name}ColdData) -> Option<${entity.name}Delta> {
+    let dirty_mask = cold.__dirty_mask;
+    if dirty_mask == 0 { return None; }
+    Some(${entity.name}Delta {
+        revision: cold.__revision,
+        dirty_mask,
+${splitDeltaValues}
+    })
+}
+
+pub fn ack_${snakeName}_split_delta(cold: &mut ${entity.name}ColdData, revision: u64) {
+${splitAckFields}
+}` : "";
   return `#[derive(Debug, Clone)]
 pub struct ${entity.name}HotData {
 ${renderFields(hotFields)}
@@ -322,7 +369,214 @@ ${dirtyInit}${coldInit}
             },
         }
     }
+}
+
+pub fn get_${snakeName}_split_number(hot: &${entity.name}HotData, cold: &${entity.name}ColdData, field: u32) -> Option<f64> {
+    match field {
+${splitGetters}
+        _ => None,
+    }
+}
+
+pub fn set_${snakeName}_split_number(hot: &mut ${entity.name}HotData, cold: &mut ${entity.name}ColdData, field: u32, number: f64) -> Result<(), &'static str> {
+    let _ = (&mut *hot, &mut *cold);
+    match field {
+${splitSetters}
+        _ => Err("unknown native ${entity.name} field"),
+    }
+}${splitDirtyAccessors}`;
+}
+
+function renderRustPools(schema: NativeSemanticModel, entities: readonly NativeEntityModel[]): string {
+  const locationVariants = entities.map((entity) => `    ${entity.name}(usize),`).join("\n");
+  const poolFields = entities.map((entity) => {
+    const snake = toNativeSnakeCase(entity.name);
+    if (hasSplitLayout(schema, entity)) {
+      return `    ${snake}_hot: Vec<${entity.name}HotData>,\n    ${snake}_cold: Vec<Option<${entity.name}ColdData>>,\n    ${snake}_free: Vec<usize>,`;
+    }
+    return `    ${snake}_values: Vec<Option<${entity.name}Data>>,\n    ${snake}_free: Vec<usize>,`;
+  }).join("\n");
+  const insertArms = entities.map((entity) => {
+    const snake = toNativeSnakeCase(entity.name);
+    if (hasSplitLayout(schema, entity)) {
+      return `            NativeEntityData::${entity.name}(value) => {
+                let split = ${entity.name}SplitData::from(value);
+                let index = if let Some(index) = self.${snake}_free.pop() {
+                    self.${snake}_hot[index] = split.hot;
+                    self.${snake}_cold[index] = Some(split.cold);
+                    index
+                } else {
+                    let index = self.${snake}_hot.len();
+                    self.${snake}_hot.push(split.hot);
+                    self.${snake}_cold.push(Some(split.cold));
+                    index
+                };
+                NativePoolLocation::${entity.name}(index)
+            }`;
+    }
+    return `            NativeEntityData::${entity.name}(value) => {
+                let index = if let Some(index) = self.${snake}_free.pop() {
+                    self.${snake}_values[index] = Some(value);
+                    index
+                } else {
+                    let index = self.${snake}_values.len();
+                    self.${snake}_values.push(Some(value));
+                    index
+                };
+                NativePoolLocation::${entity.name}(index)
+            }`;
+  }).join(",\n");
+  const removeArms = entities.map((entity) => {
+    const snake = toNativeSnakeCase(entity.name);
+    const storage = hasSplitLayout(schema, entity) ? `${snake}_cold` : `${snake}_values`;
+    return `            NativePoolLocation::${entity.name}(index) => {
+                let removed = self.${storage}.get_mut(index).and_then(Option::take).is_some();
+                if removed { self.${snake}_free.push(index); }
+                removed
+            }`;
+  }).join(",\n");
+  const getterArms = entities.map((entity) => {
+    const snake = toNativeSnakeCase(entity.name);
+    if (hasSplitLayout(schema, entity)) {
+      return `            NativePoolLocation::${entity.name}(index) => get_${snake}_split_number(
+                self.${snake}_hot.get(index)?,
+                self.${snake}_cold.get(index)?.as_ref()?,
+                field,
+            )`;
+    }
+    return `            NativePoolLocation::${entity.name}(index) => get_${snake}_number(
+                self.${snake}_values.get(index)?.as_ref()?,
+                field,
+            )`;
+  }).join(",\n");
+  const setterArms = entities.map((entity) => {
+    const snake = toNativeSnakeCase(entity.name);
+    if (hasSplitLayout(schema, entity)) {
+      return `            NativePoolLocation::${entity.name}(index) => {
+                let hot = self.${snake}_hot.get_mut(index).ok_or("native pool location is stale")?;
+                let cold = self.${snake}_cold.get_mut(index).and_then(Option::as_mut).ok_or("native pool location is stale")?;
+                set_${snake}_split_number(hot, cold, field, number)
+            }`;
+    }
+    return `            NativePoolLocation::${entity.name}(index) => set_${snake}_number(
+                self.${snake}_values.get_mut(index).and_then(Option::as_mut).ok_or("native pool location is stale")?,
+                field,
+                number,
+            )`;
+  }).join(",\n");
+  const typedAccessors = entities.map((entity) => renderRustPoolAccessors(schema, entity)).join("\n\n");
+  const liveSum = entities.map((entity) => `self.live_${toNativeSnakeCase(entity.name)}()`).join(" + ");
+  const capacitySum = entities.map((entity) => {
+    const snake = toNativeSnakeCase(entity.name);
+    if (hasSplitLayout(schema, entity)) {
+      return `self.${snake}_hot.capacity() * std::mem::size_of::<${entity.name}HotData>()
+            + self.${snake}_cold.capacity() * std::mem::size_of::<Option<${entity.name}ColdData>>()`;
+    }
+    return `self.${snake}_values.capacity() * std::mem::size_of::<Option<${entity.name}Data>>()`;
+  }).join("\n            + ");
+  return `#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativePoolLocation {
+${locationVariants}
+}
+
+#[derive(Default)]
+pub struct NativeEntityPools {
+${poolFields}
+}
+
+impl NativeEntityPools {
+    pub fn insert(&mut self, value: NativeEntityData) -> NativePoolLocation {
+        match value {
+${insertArms}
+        }
+    }
+
+    pub fn remove(&mut self, location: NativePoolLocation) -> bool {
+        match location {
+${removeArms}
+        }
+    }
+
+    pub fn get_number(&self, location: NativePoolLocation, field: u32) -> Option<f64> {
+        match location {
+${getterArms}
+        }
+    }
+
+    pub fn set_number(&mut self, location: NativePoolLocation, field: u32, number: f64) -> Result<(), &'static str> {
+        match location {
+${setterArms}
+        }
+    }
+
+    pub fn live_entities(&self) -> usize {
+        ${liveSum || "0"}
+    }
+
+    pub fn estimated_capacity_bytes(&self) -> usize {
+        ${capacitySum || "0"}
+    }
+
+${typedAccessors}
 }`;
+}
+
+function renderRustPoolAccessors(schema: NativeSemanticModel, entity: NativeEntityModel): string {
+  const snake = toNativeSnakeCase(entity.name);
+  if (hasSplitLayout(schema, entity)) {
+    return `    pub fn get_${snake}_hot(&self, location: NativePoolLocation) -> Option<&${entity.name}HotData> {
+        let NativePoolLocation::${entity.name}(index) = location else { return None; };
+        self.${snake}_cold.get(index)?.as_ref()?;
+        self.${snake}_hot.get(index)
+    }
+
+    pub fn get_${snake}_hot_mut(&mut self, location: NativePoolLocation) -> Option<&mut ${entity.name}HotData> {
+        let NativePoolLocation::${entity.name}(index) = location else { return None; };
+        self.${snake}_cold.get(index)?.as_ref()?;
+        self.${snake}_hot.get_mut(index)
+    }
+
+    pub fn get_${snake}_cold(&self, location: NativePoolLocation) -> Option<&${entity.name}ColdData> {
+        let NativePoolLocation::${entity.name}(index) = location else { return None; };
+        self.${snake}_cold.get(index)?.as_ref()
+    }
+
+    pub fn get_${snake}_cold_mut(&mut self, location: NativePoolLocation) -> Option<&mut ${entity.name}ColdData> {
+        let NativePoolLocation::${entity.name}(index) = location else { return None; };
+        self.${snake}_cold.get_mut(index)?.as_mut()
+    }
+
+    pub fn get_${snake}_parts(&self, location: NativePoolLocation) -> Option<(&${entity.name}HotData, &${entity.name}ColdData)> {
+        let NativePoolLocation::${entity.name}(index) = location else { return None; };
+        Some((self.${snake}_hot.get(index)?, self.${snake}_cold.get(index)?.as_ref()?))
+    }
+
+    pub fn get_${snake}_parts_mut(&mut self, location: NativePoolLocation) -> Option<(&mut ${entity.name}HotData, &mut ${entity.name}ColdData)> {
+        let NativePoolLocation::${entity.name}(index) = location else { return None; };
+        Some((self.${snake}_hot.get_mut(index)?, self.${snake}_cold.get_mut(index)?.as_mut()?))
+    }
+
+    pub fn live_${snake}(&self) -> usize {
+        self.${snake}_cold.len() - self.${snake}_free.len()
+    }`;
+  }
+  return `    pub fn get_${snake}(&self, location: NativePoolLocation) -> Option<&${entity.name}Data> {
+        let NativePoolLocation::${entity.name}(index) = location else { return None; };
+        self.${snake}_values.get(index)?.as_ref()
+    }
+
+    pub fn get_${snake}_mut(&mut self, location: NativePoolLocation) -> Option<&mut ${entity.name}Data> {
+        let NativePoolLocation::${entity.name}(index) = location else { return None; };
+        self.${snake}_values.get_mut(index)?.as_mut()
+    }
+
+    pub fn live_${snake}(&self) -> usize {
+        self.${snake}_values.len() - self.${snake}_free.len()
+    }`;
+}
+
+function hasSplitLayout(schema: NativeSemanticModel, entity: NativeEntityModel): boolean {
+  return projectNativeEntityApi(schema, entity).fields.some((field) => field.storage !== "default");
 }
 
 function renderRustFields(schema: NativeSemanticModel, entity: NativeEntityModel): string {
@@ -432,12 +686,14 @@ export class ${api.refName} extends Component<[args: ${api.createArgsName}]> {\n
   }\n\n\
   protected override Awake(args: ${api.createArgsName}): void {\n\
     this.nativeHandle = NativeOps.EntityCreate(${entity.typeId}, new Float64Array([\n${values}\n    ]));\n\
+    NativeOps.TrackNativeRefCreated("${entity.name}");\n\
   }\n\n\
 ${properties}\
   protected override OnDestroy(): void {\n\
     if (this.nativeHandle === 0) return;\n\
     NativeOps.EntityDestroy(this.nativeHandle);\n\
     this.nativeHandle = 0;\n\
+    NativeOps.TrackNativeRefDestroyed("${entity.name}");\n\
   }\n\
 }\n`;
 }
@@ -458,6 +714,7 @@ export class ${api.refName} {\n\
   private nativeHandle: number;\n\n\
   private constructor(handle: number) {\n\
     this.nativeHandle = handle;\n\
+    NativeOps.TrackNativeRefCreated("${entity.name}");\n\
   }\n\n\
   static Create(args: ${api.createArgsName}): ${api.refName} {\n\
     return new ${api.refName}(NativeOps.EntityCreate(${entity.typeId}, new Float64Array([\n${values}\n    ])));\n\
@@ -471,6 +728,7 @@ ${properties}\n\
     if (this.nativeHandle === 0) return;\n\
     NativeOps.EntityDestroy(this.nativeHandle);\n\
     this.nativeHandle = 0;\n\
+    NativeOps.TrackNativeRefDestroyed("${entity.name}");\n\
   }\n\
 }\n\n\
 export interface ${api.createArgsName} {\n${args}\n}\n`;
@@ -482,8 +740,21 @@ function rustFieldPath(root: string, field: NativeProjectedEntityField): string 
 
 function renderRustSetter(entity: NativeEntityModel, field: NativeProjectedEntityField): string {
   const target = rustFieldPath("value", field);
+  return renderRustSetterForTarget(entity, field, target, "value");
+}
+
+function renderRustSplitSetter(entity: NativeEntityModel, field: NativeProjectedEntityField): string {
+  return renderRustSetterForTarget(entity, field, rustSplitFieldPath("hot", "cold", field), "cold");
+}
+
+function renderRustSetterForTarget(
+  entity: NativeEntityModel,
+  field: NativeProjectedEntityField,
+  target: string,
+  dirtyRoot: string,
+): string {
   if (field.type === "f32") {
-    return wrapDirtyAssignment(entity, field, target, `number as f32`, `if !number.is_finite() || number < f32::MIN as f64 || number > f32::MAX as f64 { return Err("native ${entity.name} field ${field.name} must be a finite f32"); }`);
+    return wrapDirtyAssignment(entity, field, target, dirtyRoot, `number as f32`, `if !number.is_finite() || number < f32::MIN as f64 || number > f32::MAX as f64 { return Err("native ${entity.name} field ${field.name} must be a finite f32"); }`);
   }
   const ranges: Record<string, readonly [string, string, string]> = {
     u32: ["0.0", "u32::MAX as f64", "u32"],
@@ -493,7 +764,7 @@ function renderRustSetter(entity: NativeEntityModel, field: NativeProjectedEntit
   const range = ranges[field.type];
   if (!range) throw new Error(`unsupported native setter field type ${field.type}`);
   const [min, max, type] = range;
-  return wrapDirtyAssignment(entity, field, target, `number as ${type}`, `if !number.is_finite() || number.fract() != 0.0 || number < ${min} || number > ${max} { return Err("native ${entity.name} field ${field.name} must be ${field.type}"); }`);
+  return wrapDirtyAssignment(entity, field, target, dirtyRoot, `number as ${type}`, `if !number.is_finite() || number.fract() != 0.0 || number < ${min} || number > ${max} { return Err("native ${entity.name} field ${field.name} must be ${field.type}"); }`);
 }
 
 function nativeRustFieldType(type: NativeProjectedEntityField["type"]): string {
@@ -508,9 +779,13 @@ function nativeRustFieldType(type: NativeProjectedEntityField["type"]): string {
   return result;
 }
 
-function wrapDirtyAssignment(entity: NativeEntityModel, field: NativeProjectedEntityField, target: string, converted: string, validation: string): string {
+function wrapDirtyAssignment(entity: NativeEntityModel, field: NativeProjectedEntityField, target: string, dirtyRoot: string, converted: string, validation: string): string {
   const assign = field.memberId === undefined
     ? `${target} = converted;`
-    : `if ${target} != converted { ${target} = converted; value.__revision = value.__revision.wrapping_add(1).max(1); value.__member_revisions[${field.memberId}] = value.__revision; value.__dirty_mask |= 1u64 << ${field.memberId}; }`;
+    : `if ${target} != converted { ${target} = converted; ${dirtyRoot}.__revision = ${dirtyRoot}.__revision.wrapping_add(1).max(1); ${dirtyRoot}.__member_revisions[${field.memberId}] = ${dirtyRoot}.__revision; ${dirtyRoot}.__dirty_mask |= 1u64 << ${field.memberId}; }`;
   return `${validation} let converted = ${converted}; ${assign}`;
+}
+
+function rustSplitFieldPath(hotRoot: string, coldRoot: string, field: NativeProjectedEntityField): string {
+  return `${field.storage === "hot" ? hotRoot : coldRoot}.${toNativeSnakeCase(field.name)}`;
 }

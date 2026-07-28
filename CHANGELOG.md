@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.14.0
+
+- codegen生成`NativeEntityPools`、类型池位置、每种Entity的存活数量与容量估算，不再要求主工程手写Pool布局。
+- 对带`@hot/@cold`的Entity生成分离标量访问器与Peek/Ack脏数据访问器，正式Runtime可直接采用冷热布局。
+- 生成的NativeRef在Create/Awake与Dispose/OnDestroy中维护分类型TS句柄计数，供Runtime可观测性采样。
+
 ## 0.13.0
 
 - 字段新增`@hot`与`@cold`存储温度标记，语言服务提供中文补全、诊断和Hover说明。
