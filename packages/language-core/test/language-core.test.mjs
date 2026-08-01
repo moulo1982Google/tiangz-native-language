@@ -40,6 +40,7 @@ test("parses and validates the current TiangZ schema model", () => {
       text: `namespace native;
 op EntityCreate(entityType: u32, values: f64[]): u32;
 op EntityDestroy(handle: u32): void;
+op NumericSet(handle: u32, value: i64): i64;
 `,
     },
   ]);
@@ -53,6 +54,8 @@ op EntityDestroy(handle: u32): void;
     ],
   );
   assert.deepEqual(model.operations[0].params.map((parameter) => parameter.type), ["u32", "f64[]"]);
+  assert.deepEqual(model.operations[2].params.map((parameter) => parameter.type), ["u32", "i64"]);
+  assert.equal(model.operations[2].returnType, "i64");
 });
 
 test("projects the exact Rust and TypeScript generated symbol names", () => {

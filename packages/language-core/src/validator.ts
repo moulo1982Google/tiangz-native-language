@@ -16,8 +16,8 @@ import type {
 } from "./types.js";
 
 const ENTITY_FIELD_TYPES = new Set(["u32", "i32", "i8", "f32"]);
-const OP_PARAMETER_TYPES = new Set(["u32", "i32", "i8", "f64", "bool", "bytes", "f64[]"]);
-const OP_RETURN_TYPES = new Set(["u32", "i32", "i8", "f64", "bool", "bytes", "void"]);
+const OP_PARAMETER_TYPES = new Set(["u32", "i32", "i64", "i8", "f64", "bool", "bytes", "f64[]"]);
+const OP_RETURN_TYPES = new Set(["u32", "i32", "i64", "i8", "f64", "bool", "bytes", "void"]);
 
 interface EntityEntry {
   readonly document: NativeDocument;

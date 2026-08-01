@@ -435,7 +435,7 @@ function annotationCompletions(): CompletionItem[] {
 }
 
 function typeCompletions(): CompletionItem[] {
-  return ["u32", "i32", "i8", "f32", "f64", "bool", "bytes", "f64[]", "void"]
+  return ["u32", "i32", "i64", "i8", "f32", "f64", "bool", "bytes", "f64[]", "void"]
     .map((label) => ({ label, kind: CompletionItemKind.TypeParameter }));
 }
 

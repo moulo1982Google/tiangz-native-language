@@ -190,6 +190,12 @@ function renderNativeOpsBootstrap(schema: NativeSemanticModel, options: Resolved
   };\n\
   const u32 = (value, name) => integer(value, 0, 0xffff_ffff, name);\n\
   const i32 = (value, name) => integer(value, -0x8000_0000, 0x7fff_ffff, name);\n\
+  const i64 = (value, name) => {\n\
+    if (typeof value !== "bigint" || value < -0x8000_0000_0000_0000n || value > 0x7fff_ffff_ffff_ffffn) {\n\
+      throw new RangeError(\`native op \${name} must be an i64 bigint\`);\n\
+    }\n\
+    return value;\n\
+  };\n\
   const i8 = (value, name) => integer(value, -128, 127, name);\n\
   const f64 = (value, name) => {\n\
     if (typeof value !== "number" || !Number.isFinite(value)) {\n\
@@ -261,7 +267,7 @@ ${facadeMethods}\n}\n`;
 
 function renderBootstrapArgument(parameter: NativeOperationParameterModel): string {
   const conversions: Record<string, string> = {
-    u32: "u32", i32: "i32", i8: "i8", f64: "f64", "f64[]": "f64Array", bytes: "bytes", bool: "bool",
+    u32: "u32", i32: "i32", i64: "i64", i8: "i8", f64: "f64", "f64[]": "f64Array", bytes: "bytes", bool: "bool",
   };
   const conversion = conversions[parameter.type];
   if (!conversion) throw new Error(`unsupported native parameter type ${parameter.type}`);
@@ -270,7 +276,7 @@ function renderBootstrapArgument(parameter: NativeOperationParameterModel): stri
 
 function nativeTypeScriptType(type: string): string {
   const types: Record<string, string> = {
-    u32: "number", i32: "number", i8: "number", f64: "number", "f64[]": "Float64Array",
+    u32: "number", i32: "number", i64: "bigint", i8: "number", f64: "number", "f64[]": "Float64Array",
     bool: "boolean", bytes: "Uint8Array", void: "void",
   };
   const result = types[type];

@@ -46,6 +46,8 @@ entity Stats extends Entity {
 
 高频批处理实体可以在字段上使用`@hot`和`@cold`。codegen会保留现有`XxxData`兼容布局，并额外生成`XxxHotData`、`XxxColdData`和`XxxSplitData`，供主工程用同一份schema验证类型分池与冷热分离。未标记字段在Split候选中按冷数据处理；冷热标记改变Rust数据布局，不能热更。
 
+Native op支持`i64`参数和返回值，并在TypeScript侧映射为`bigint`，不会经过可能丢失精度的`number`。
+
 ## 本地安装
 
 ```powershell

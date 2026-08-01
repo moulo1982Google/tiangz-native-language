@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Native op参数和返回值支持`i64`；生成的TypeScript API使用`bigint`，bootstrap会拒绝number和越界值。
+
+## Unreleased
+
 ## 0.14.0
 
 - codegen生成`NativeEntityPools`、类型池位置、每种Entity的存活数量与容量估算，不再要求主工程手写Pool布局。
