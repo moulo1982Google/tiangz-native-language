@@ -10,8 +10,6 @@
     "vscode": "^1.91.0"
   },
   "activationEvents": [
-    "onLanguage:tiangz-native",
-    "onCommand:tiangzNative.runCodegen"
   ],
   "main": "./dist/extension.cjs",
   "categories": [
