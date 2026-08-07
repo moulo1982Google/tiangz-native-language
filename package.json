@@ -3,6 +3,7 @@
   "version": "0.15.0",
   "description": "TiangZ .native 语言共享的解析器、AST、校验器与代码生成命名投影",
   "author": "moulo",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./packages/language-core/dist/index.js",
   "types": "./packages/language-core/dist/index.d.ts",
@@ -21,7 +22,8 @@
     "packages/codegen-core/dist/**",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "workspaces": [
     "extension"

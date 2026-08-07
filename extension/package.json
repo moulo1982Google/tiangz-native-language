@@ -5,7 +5,7 @@
   "version": "0.14.0",
   "publisher": "moulo",
   "author": "moulo",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "engines": {
     "vscode": "^1.91.0"
   },
@@ -34,7 +34,8 @@
     "dist/server.cjs",
     "dist/server.cjs.map",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

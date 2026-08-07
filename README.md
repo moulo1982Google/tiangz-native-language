@@ -107,3 +107,7 @@ examples/                  示例 .native 文件
 ```
 
 详细语法见 [语言规范](docs/language-spec.md)，运行边界见 [性能与稳定性](docs/performance.md)，实施顺序见 [路线图](docs/roadmap.md)。
+
+## 开源协议
+
+TiangZ Native Language 使用 [Apache License 2.0](LICENSE) 开源，版权归 2025-2026 郑昕 所有。分发或修改本项目时，请同时保留 [NOTICE](NOTICE) 中的版权与归属声明。
