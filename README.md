@@ -44,6 +44,19 @@ entity Stats extends Entity {
 
 `@replicated` 会生成 Rust 脏掩码和字段级 revision；只有实际变值的 `@memberId(1..63)` 字段会置位。生成的 `peek_xxx_delta` 不会提前清脏，发送成功后由 `ack_xxx_delta` 按 revision 确认；发送期间产生的新修改不会被旧 Ack 清除。成员编号属于持久协议，不应因字段换序而修改。普通字段不参与该机制，立即消息与有序事件仍由业务协议明确发送。
 
+普通Entity可以声明版本化持久化结构：
+
+```native
+@typeId(2)
+@persistent(1)
+entity Item extends Entity {
+  readonly configId: u32;
+  count: u32 = 1;
+}
+```
+
+`@persistent(version)`会生成强类型Snapshot、严格JSON Codec和TiangZ通用DBProxy Repository工厂。字段默认进入快照；`@transient`用于排除`instanceId`等仅在本次运行有效的字段。当前Codec只读取完整的当前版本，因此持久字段的增加、删除、改名或改类型都必须递增版本并提供迁移；单纯修改运行时数据不改变版本。该能力不替代复杂查询、索引和跨记录事务的领域Repository。
+
 高频批处理实体可以在字段上使用`@hot`和`@cold`。codegen会保留现有`XxxData`兼容布局，并额外生成`XxxHotData`、`XxxColdData`和`XxxSplitData`，供主工程用同一份schema验证类型分池与冷热分离。未标记字段在Split候选中按冷数据处理；冷热标记改变Rust数据布局，不能热更。
 
 Native op支持`i64`参数和返回值，并在TypeScript侧映射为`bigint`，不会经过可能丢失精度的`number`。

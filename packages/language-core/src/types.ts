@@ -101,6 +101,7 @@ export interface ParseNativeOptions {
 export interface NativeFieldModel {
   readonly memberId?: number;
   readonly storage: "default" | "hot" | "cold";
+  readonly transient: boolean;
   readonly readonly: boolean;
   readonly name: string;
   readonly type: string;
@@ -114,6 +115,7 @@ export interface NativeEntityModel {
   readonly typeId?: number;
   readonly component: boolean;
   readonly replicated: boolean;
+  readonly persistenceVersion?: number;
   readonly abstract: boolean;
   readonly name: string;
   readonly parent?: string;

@@ -171,6 +171,14 @@ function validateEntityAnnotations(entry: EntityEntry, diagnostics: NativeDiagno
       if (annotation.arguments.length !== 0) {
         report(diagnostics, entry.document.uri, "native.semantic.replicated-arguments", "@replicated 不接受参数", annotation.range);
       }
+    } else if (name === "persistent") {
+      const value = annotation.arguments[0]?.value;
+      if (annotation.arguments.length !== 1 || !Number.isSafeInteger(value) || value! < 1 || value! > 0x7fff_ffff) {
+        report(diagnostics, entry.document.uri, "native.semantic.invalid-persistence-version", "@persistent 必须且只能包含 1..2147483647 的整数版本号", annotation.range);
+      }
+      if (entry.node.abstract) {
+        report(diagnostics, entry.document.uri, "native.semantic.abstract-persistent", "抽象 Entity 不能声明 @persistent", annotation.range);
+      }
     } else if (name) {
       report(diagnostics, entry.document.uri, "native.semantic.unknown-annotation", `未知注解 @${name}`, annotation.name.range);
     }
@@ -191,7 +199,7 @@ function validateEntityFields(entry: EntityEntry, diagnostics: NativeDiagnostic[
       annotation.name.name === "hot" || annotation.name.name === "cold"
     );
     for (const annotation of field.annotations) {
-      if (annotation.name.name !== "memberId" && annotation.name.name !== "hot" && annotation.name.name !== "cold") {
+      if (annotation.name.name !== "memberId" && annotation.name.name !== "hot" && annotation.name.name !== "cold" && annotation.name.name !== "transient") {
         report(diagnostics, entry.document.uri, "native.semantic.unknown-field-annotation", `未知字段注解 @${annotation.name.name}`, annotation.name.range);
       }
     }
@@ -234,6 +242,13 @@ function validateEntityFields(entry: EntityEntry, diagnostics: NativeDiagnostic[
         `字段 ${field.name.name} 只能声明一个 @hot 或 @cold`,
         storageAnnotations[1]!.range,
       );
+    }
+    const transientAnnotations = field.annotations.filter((annotation) => annotation.name.name === "transient");
+    if (transientAnnotations.length > 1) {
+      report(diagnostics, entry.document.uri, "native.semantic.duplicate-transient", `字段 ${field.name.name} 重复声明 @transient`, transientAnnotations[1]!.range);
+    }
+    if (transientAnnotations[0]?.arguments.length) {
+      report(diagnostics, entry.document.uri, "native.semantic.transient-arguments", "@transient 不接受参数", transientAnnotations[0].range);
     }
     if (!ENTITY_FIELD_TYPES.has(field.type.name)) {
       report(diagnostics, entry.document.uri, "native.semantic.invalid-field-type", `不支持的 Entity 字段类型 ${field.type.name}`, field.type.range);
@@ -406,12 +421,14 @@ function inheritsFrom(
 function toEntityModel(entry: EntityEntry): NativeEntityModel {
   const namespace = entry.document.namespace?.name.name ?? "";
   const typeId = readTypeId(entry.node);
+  const persistenceVersion = readPersistenceVersion(entry.node);
   return {
     namespace,
     sourceFile: entry.document.uri,
     ...(typeId !== undefined ? { typeId } : {}),
     component: hasAnnotation(entry.node, "component"),
     replicated: hasAnnotation(entry.node, "replicated"),
+    ...(persistenceVersion !== undefined ? { persistenceVersion } : {}),
     abstract: entry.node.abstract,
     name: entry.node.name.name,
     ...(entry.node.parent ? { parent: entry.node.parent.name } : {}),
@@ -421,6 +438,7 @@ function toEntityModel(entry: EntityEntry): NativeEntityModel {
       return {
         ...(memberId !== undefined ? { memberId } : {}),
         storage,
+        transient: field.annotations.some((annotation) => annotation.name.name === "transient"),
         readonly: field.readonly,
         name: field.name.name,
         type: field.type.name,
@@ -434,6 +452,11 @@ function toEntityModel(entry: EntityEntry): NativeEntityModel {
 
 function readMemberId(field: FieldDeclarationNode): number | undefined {
   const value = field.annotations.find((annotation) => annotation.name.name === "memberId")?.arguments[0]?.value;
+  return Number.isSafeInteger(value) ? value : undefined;
+}
+
+function readPersistenceVersion(node: EntityDeclarationNode): number | undefined {
+  const value = node.annotations.find((annotation) => annotation.name.name === "persistent")?.arguments[0]?.value;
   return Number.isSafeInteger(value) ? value : undefined;
 }
 

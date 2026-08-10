@@ -188,6 +188,33 @@ entity Invalid extends Entity {
   assert.ok(invalid.diagnostics.some((diagnostic) => diagnostic.code === "native.semantic.conflicting-storage"));
 });
 
+test("validates versioned persistence and transient runtime fields", () => {
+  const model = assertValidNativeWorkspace([{
+    uri: "Item.native",
+    text: `namespace demo;
+abstract entity Entity { readonly id: u32; @transient readonly instanceId: u32; }
+@typeId(9)
+@persistent(2)
+entity Item extends Entity { configId: u32; count: u32 = 1; }
+`,
+  }]);
+  const item = model.entities.find((entity) => entity.name === "Item");
+  assert.equal(item?.persistenceVersion, 2);
+  assert.equal(model.entities[0].fields[1].transient, true);
+  assert.equal(item?.fields[0].transient, false);
+
+  const invalid = analyzeNativeWorkspace([{
+    uri: "Invalid.native",
+    text: `namespace demo;
+@persistent(1)
+abstract entity Entity { @transient(1) readonly id: u32; }
+`,
+  }]);
+  const codes = new Set(invalid.diagnostics.map((diagnostic) => diagnostic.code));
+  assert.ok(codes.has("native.semantic.abstract-persistent"));
+  assert.ok(codes.has("native.semantic.transient-arguments"));
+});
+
 test("finds the smallest available typeId and rejects ambiguous workspaces", () => {
   assert.deepEqual(findNextAvailableTypeId([1, 3, undefined]), { status: "available", typeId: 2 });
   assert.deepEqual(findNextAvailableTypeId([1, 2, 2, 4, 4]), {

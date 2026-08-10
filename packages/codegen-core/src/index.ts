@@ -25,6 +25,7 @@ export interface NativeCodegenOptions {
   readonly typeScriptRoot?: string;
   readonly componentBaseImport?: string;
   readonly componentDecoratorImport?: string;
+  readonly persistenceRuntimeImport?: string;
 }
 
 interface ResolvedOptions {
@@ -35,6 +36,7 @@ interface ResolvedOptions {
   readonly typeScriptRoot: string;
   readonly componentBaseImport: string;
   readonly componentDecoratorImport: string;
+  readonly persistenceRuntimeImport: string;
 }
 
 export function generateNativeFiles(
@@ -60,6 +62,12 @@ export function generateNativeFiles(
       relativePath: `${resolved.typeScriptRoot}/${api.fileName}`,
       content: renderTypeScript(schema, entity, resolved),
     });
+    if (entity.persistenceVersion !== undefined) {
+      files.push({
+        relativePath: `${resolved.typeScriptRoot}/Native${entity.name}Persistence.ts`,
+        content: renderTypeScriptPersistence(schema, entity, resolved),
+      });
+    }
   }
   return files;
 }
@@ -74,6 +82,7 @@ function resolveOptions(options: NativeCodegenOptions): ResolvedOptions {
     typeScriptRoot: options.typeScriptRoot ?? "app/generated/model/native",
     componentBaseImport: options.componentBaseImport ?? "../../../core/runtime/entities",
     componentDecoratorImport: options.componentDecoratorImport ?? "../../../core/runtime/metadata",
+    persistenceRuntimeImport: options.persistenceRuntimeImport ?? "../../../core/public",
   };
 }
 
@@ -738,6 +747,84 @@ ${properties}\n\
   }\n\
 }\n\n\
 export interface ${api.createArgsName} {\n${args}\n}\n`;
+}
+
+function renderTypeScriptPersistence(
+  schema: NativeSemanticModel,
+  entity: NativeEntityModel,
+  options: ResolvedOptions,
+): string {
+  const version = entity.persistenceVersion;
+  if (version === undefined) throw new Error(`native entity ${entity.name} is not persistent`);
+  const api = projectNativeEntityApi(schema, entity);
+  const fields = api.fields.filter((field) => !field.transient);
+  if (fields.length === 0) throw new Error(`persistent native entity ${entity.name} has no persisted fields`);
+  const snapshotName = `Native${entity.name}PersistenceSnapshot`;
+  const codecName = `Native${entity.name}PersistenceCodec`;
+  const properties = fields.map((field) => `  readonly ${field.name}: number;`).join("\n");
+  const captures = fields.map((field) => `      ${field.name}: value.${field.name},`).join("\n");
+  const validations = fields.map((field) => renderTypeScriptPersistenceValidation(field)).join("\n");
+  const fieldNames = fields.map((field) => `"${field.name}"`).join(", ");
+  const schemaName = `${entity.namespace}.${entity.name}`;
+  const recordNamespace = `entity.${entity.namespace}.${toNativeSnakeCase(entity.name)}`.toLowerCase();
+  return `${options.banner}\n\n\
+import { DbProxyEntityRepository, utf8Decode, utf8Encode, type VersionedEntityCodec } from "${options.persistenceRuntimeImport}";\n\
+import { ${api.refName} } from "./${api.fileName.replace(/\.ts$/, "")}";\n\n\
+export interface ${snapshotName} {\n${properties}\n}\n\n\
+/** 由.native版本化结构生成；DBProxy只保存其不透明字节。 / Generated from the versioned .native shape; DBProxy stores only opaque bytes. */\n\
+export const ${codecName}: VersionedEntityCodec<${snapshotName}, ${api.refName}> = {\n\
+  recordNamespace: "${recordNamespace}",\n\
+  schema: "${schemaName}",\n\
+  schemaVersion: ${version},\n\n\
+  Capture(value: ${api.refName}): ${snapshotName} {\n\
+    return {\n${captures}\n    };\n\
+  },\n\n\
+  Encode(value: ${snapshotName}): Uint8Array {\n\
+    validateSnapshot(value);\n\
+    return utf8Encode(JSON.stringify({ version: ${version}, data: value }));\n\
+  },\n\n\
+  Decode(payload: Uint8Array): ${snapshotName} {\n\
+    let decoded: unknown;\n\
+    try { decoded = JSON.parse(utf8Decode(payload)); }\n\
+    catch (error) { throw new Error(\`invalid ${schemaName} persistence payload: \${String(error)}\`); }\n\
+    const envelope = requireRecord(decoded, "payload");\n\
+    if (envelope.version !== ${version}) throw new Error(\`unsupported ${schemaName} persistence version: \${String(envelope.version)}\`);\n\
+    validateSnapshot(envelope.data);\n\
+    return envelope.data;\n\
+  },\n\
+};\n\n\
+/** 创建该Entity的通用DBProxy Repository；复杂查询和跨记录事务应另写领域Repository。 / Creates the generic DBProxy Repository; queries and cross-record transactions need a domain Repository. */\n\
+export function CreateNative${entity.name}Repository(processName: string): DbProxyEntityRepository<${snapshotName}, ${api.refName}> {\n\
+  return new DbProxyEntityRepository(${codecName}, processName);\n\
+}\n\n\
+function validateSnapshot(value: unknown): asserts value is ${snapshotName} {\n\
+  const record = requireRecord(value, "${schemaName}");\n\
+  const allowed = new Set([${fieldNames}]);\n\
+  for (const key of Object.keys(record)) {\n\
+    if (!allowed.has(key)) throw new TypeError(\`${schemaName}.\${key} is unknown\`);\n\
+  }\n\
+  if (Object.keys(record).length !== allowed.size) throw new TypeError("${schemaName} persistence fields are incomplete");\n\
+${validations}\n\
+}\n\n\
+function requireRecord(value: unknown, name: string): Record<string, unknown> {\n\
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new TypeError(\`\${name} must be an object\`);\n\
+  return value as Record<string, unknown>;\n\
+}\n`;
+}
+
+function renderTypeScriptPersistenceValidation(field: NativeProjectedEntityField): string {
+  const value = `record.${field.name}`;
+  if (field.type === "f32") {
+    return `  if (typeof ${value} !== "number" || !Number.isFinite(${value}) || Math.abs(${value}) > 3.4028234663852886e38) throw new TypeError("${field.name} must be a finite f32");`;
+  }
+  const ranges: Record<string, readonly [number, number]> = {
+    u32: [0, 0xffff_ffff],
+    i32: [-0x8000_0000, 0x7fff_ffff],
+    i8: [-128, 127],
+  };
+  const range = ranges[field.type];
+  if (!range) throw new Error(`unsupported persistence field type ${field.type}`);
+  return `  if (typeof ${value} !== "number" || !Number.isSafeInteger(${value}) || ${value} < ${range[0]} || ${value} > ${range[1]}) throw new TypeError("${field.name} must be ${field.type}");`;
 }
 
 function rustFieldPath(root: string, field: NativeProjectedEntityField): string {

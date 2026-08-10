@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.0 Core / 0.15.0 Extension
+
+- 新增`@persistent(version)`与`@transient`语义，生成版本化Snapshot Codec和TiangZ通用DBProxy Repository工厂。
+- Language Server补充持久化注解的中文补全、签名帮助和Hover说明。
+
 ## Unreleased
 
 - Native op参数和返回值支持`i64`；生成的TypeScript API使用`bigint`，bootstrap会拒绝number和越界值。

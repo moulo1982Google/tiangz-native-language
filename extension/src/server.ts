@@ -222,6 +222,17 @@ connection.onSignatureHelp((params): SignatureHelp | null => {
       activeParameter: 0,
     };
   }
+  if (/@persistent\s*\([^)]*$/.test(linePrefix)) {
+    return {
+      signatures: [{
+        label: "@persistent(version: integer)",
+        documentation: "为普通 Entity 声明稳定的持久化结构版本，并生成 Snapshot Codec 与 Repository 描述。",
+        parameters: [{ label: "version: integer", documentation: "结构不兼容变更时递增；仅修改运行时数据不改变版本。" }],
+      }],
+      activeSignature: 0,
+      activeParameter: 0,
+    };
+  }
 
   const operationMatch = /\bop\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)$/.exec(linePrefix);
   if (!operationMatch) return null;
@@ -428,9 +439,11 @@ function annotationCompletions(): CompletionItem[] {
     { label: "typeId", detail: "为具体 Entity 分配全局唯一类型编号", kind: CompletionItemKind.Property, insertText: "typeId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
     { label: "component", detail: "将 Entity 标记为 Component", kind: CompletionItemKind.Property },
     { label: "replicated", detail: "为固定字段 Entity 生成帧尾脏掩码和强类型 Delta", kind: CompletionItemKind.Property },
+    { label: "persistent", detail: "生成有版本的 Snapshot Codec 与 Repository 描述", kind: CompletionItemKind.Property, insertText: "persistent(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
     { label: "memberId", detail: "为复制字段分配稳定的 1..63 成员编号", kind: CompletionItemKind.Property, insertText: "memberId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
     { label: "hot", detail: "将字段标记为高频访问数据，供 Rust 热池布局生成", kind: CompletionItemKind.Property },
     { label: "cold", detail: "将字段标记为低频访问数据，供 Rust 冷池布局生成", kind: CompletionItemKind.Property },
+    { label: "transient", detail: "将运行时字段排除在持久化 Snapshot 之外", kind: CompletionItemKind.Property },
   ];
 }
 
@@ -527,6 +540,7 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
     `- **类型编号**：${entity.typeId === undefined ? "无（抽象实体不生成 typeId）" : markdownCode(String(entity.typeId))}`,
     `- **父实体**：${entity.parent ? markdownCode(entity.parent) : "无"}`,
     `- **帧尾复制**：${entity.replicated ? "已启用，将生成 dirty mask 和强类型 Delta" : "未启用"}`,
+    `- **持久化**：${entity.persistenceVersion === undefined ? "未声明" : `schema 版本 ${markdownCode(String(entity.persistenceVersion))}，生成严格 Codec 与 Repository 描述`}`,
     `- **字段**：本级 ${ownFieldCount} 个，继承 ${inheritedFieldCount} 个，共 ${flattenedFields.length} 个`,
     `- **存储布局**：显式热字段 ${hotFieldCount} 个，显式冷字段 ${coldFieldCount} 个${hotFieldCount + coldFieldCount > 0 ? "；codegen 将额外生成 Hot/Cold 候选布局" : "；保持默认布局"}`,
   ];
@@ -536,6 +550,23 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
   if (!entity.abstract) {
     lines.push("", "TS 侧持有 Native handle；实体数据实际保存在 Rust 侧。`typeId` 用于创建对应的 Rust 数据变体。");
     appendEntityUsageExample(lines, entity, api);
+    if (entity.persistenceVersion !== undefined) {
+      const persistenceFile = `Native${entity.name}Persistence`;
+      lines.push(
+        "",
+        "**持久化使用示例**",
+        "",
+        "```ts",
+        `import { CreateNative${entity.name}Repository } from "#generated/model/native/${persistenceFile}";`,
+        "",
+        `const repository = CreateNative${entity.name}Repository(process.name);`,
+        `const loaded = await repository.Load(String(${toNativeCamelCase(entity.name)}.id));`,
+        `const saved = await repository.Save(String(${toNativeCamelCase(entity.name)}.id), ${toNativeCamelCase(entity.name)}, loaded?.revision ?? 0n);`,
+        "```",
+        "",
+        "`instanceId`等`@transient`字段不会进入快照；恢复后的Entity创建和生命周期仍由业务所有者负责。",
+      );
+    }
   } else {
     lines.push("", "抽象实体只生成 Rust 基础数据结构，不生成可独立创建的 TS handle。");
   }
@@ -566,6 +597,7 @@ function describeFieldModel(entity: NativeEntityModel, field: NativeFieldModel, 
     `- **字段编号**：${fieldNumber === undefined ? "无法计算" : markdownCode(String(fieldNumber))}${fieldConstant ? `（Rust 常量 ${markdownCode(fieldConstant)}）` : ""}`,
     `- **复制 MemberId**：${field.memberId === undefined ? "未参与固定字段脏同步" : `${markdownCode(String(field.memberId))}（dirty mask bit ${field.memberId}）`}`,
     `- **存储温度**：${field.storage === "hot" ? "热字段；高频批处理应只遍历 Hot Pool" : field.storage === "cold" ? "冷字段；不进入高频扫描工作集" : "默认；保持普通 Entity 布局"}`,
+    `- **持久化**：${field.transient ? "运行时字段，不进入 Snapshot" : "默认进入声明了 @persistent 的 Entity Snapshot"}`,
     `- **Rust 实际成员**：${rustMember ? markdownCode(rustMember) : "未生成"}`,
   ];
   if (tsProperty && fieldNumber !== undefined) {

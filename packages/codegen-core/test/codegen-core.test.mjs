@@ -137,3 +137,32 @@ test("generates lossless i64 op bindings as TypeScript bigint", () => {
   assert.match(ops, /numericGet\(handle: number, numericType: number\): bigint/);
   assert.match(ops, /NumericSet\(handle: number, numericType: number, value: bigint\): boolean/);
 });
+
+test("generates a strict versioned persistence codec without transient fields", () => {
+  const persistentSchema = assertValidNativeWorkspace([
+    {
+      uri: "Entity.native",
+      text: `namespace demo;
+abstract entity Entity { readonly id: u32; @transient readonly instanceId: u32; }
+`,
+    },
+    {
+      uri: "Item.native",
+      text: `namespace demo;
+@typeId(2)
+@persistent(3)
+entity Item extends Entity { configId: u32; count: u32 = 1; }
+`,
+    },
+    { uri: "Ops.native", text: "namespace native; op EntityCreate(entityType: u32, values: f64[]): u32;" },
+  ]);
+  const files = generateNativeFiles(persistentSchema);
+  const persistence = files.find((file) => file.relativePath.endsWith("NativeItemPersistence.ts"))?.content ?? "";
+  assert.match(persistence, /schemaVersion: 3/);
+  assert.match(persistence, /schema: "demo.Item"/);
+  assert.match(persistence, /recordNamespace: "entity.demo.item"/);
+  assert.match(persistence, /readonly id: number/);
+  assert.doesNotMatch(persistence, /readonly instanceId: number/);
+  assert.match(persistence, /Capture\(value: NativeItemRef\)/);
+  assert.match(persistence, /persistence fields are incomplete/);
+});

@@ -18,6 +18,7 @@ export interface NativeProjectedEntityField {
   readonly defaultValue?: string;
   readonly memberId?: number;
   readonly storage: NativeFieldModel["storage"];
+  readonly transient: boolean;
   readonly fieldId: number;
   readonly rustPath: readonly string[];
   readonly rustFieldConstant: string;
@@ -85,6 +86,7 @@ function flattenProjectedFields(
       ...(field.defaultValue !== undefined ? { defaultValue: field.defaultValue } : {}),
       ...(field.memberId !== undefined ? { memberId: field.memberId } : {}),
       storage: field.storage,
+      transient: field.transient,
       rustPath: [toNativeSnakeCase(field.name)],
     })),
   ];
