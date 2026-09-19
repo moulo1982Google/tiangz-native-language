@@ -8,6 +8,7 @@ import type {
   NativeEntityModel,
   NativeFieldModel,
   NativeOperationModel,
+  NativePersistenceWriteMode,
   NativeSemanticModel,
   NativeSource,
   NativeWorkspaceAnalysis,
@@ -179,9 +180,25 @@ function validateEntityAnnotations(entry: EntityEntry, diagnostics: NativeDiagno
       if (entry.node.abstract) {
         report(diagnostics, entry.document.uri, "native.semantic.abstract-persistent", "抽象 Entity 不能声明 @persistent", annotation.range);
       }
+    } else if (name === "queued" || name === "transactional") {
+      if (annotation.arguments.length !== 0) {
+        report(diagnostics, entry.document.uri, "native.semantic.write-mode-arguments", `@${name} 不接受参数`, annotation.range);
+      }
     } else if (name) {
       report(diagnostics, entry.document.uri, "native.semantic.unknown-annotation", `未知注解 @${name}`, annotation.name.range);
     }
+  }
+  // 写法标记限制的是持久化记录，同一记录只能有一种写法，否则排队写可能覆盖版本校验后的新数据。
+  // Write-mode markers constrain persisted records; one record gets one write path so blind queued writes cannot overwrite CAS-confirmed data.
+  const queued = seen.get("queued");
+  const transactional = seen.get("transactional");
+  for (const marker of [queued, transactional]) {
+    if (marker && !seen.has("persistent")) {
+      report(diagnostics, entry.document.uri, "native.semantic.write-mode-requires-persistent", `@${marker.name.name} 必须与 @persistent 一起声明`, marker.range);
+    }
+  }
+  if (queued && transactional) {
+    report(diagnostics, entry.document.uri, "native.semantic.conflicting-write-modes", "@queued 与 @transactional 不能同时声明；同一持久化记录只能有一种写法", transactional.range);
   }
 }
 
@@ -422,6 +439,7 @@ function toEntityModel(entry: EntityEntry): NativeEntityModel {
   const namespace = entry.document.namespace?.name.name ?? "";
   const typeId = readTypeId(entry.node);
   const persistenceVersion = readPersistenceVersion(entry.node);
+  const persistenceWriteMode = readPersistenceWriteMode(entry.node);
   return {
     namespace,
     sourceFile: entry.document.uri,
@@ -429,6 +447,7 @@ function toEntityModel(entry: EntityEntry): NativeEntityModel {
     component: hasAnnotation(entry.node, "component"),
     replicated: hasAnnotation(entry.node, "replicated"),
     ...(persistenceVersion !== undefined ? { persistenceVersion } : {}),
+    ...(persistenceVersion !== undefined && persistenceWriteMode !== undefined ? { persistenceWriteMode } : {}),
     abstract: entry.node.abstract,
     name: entry.node.name.name,
     ...(entry.node.parent ? { parent: entry.node.parent.name } : {}),
@@ -458,6 +477,15 @@ function readMemberId(field: FieldDeclarationNode): number | undefined {
 function readPersistenceVersion(node: EntityDeclarationNode): number | undefined {
   const value = node.annotations.find((annotation) => annotation.name.name === "persistent")?.arguments[0]?.value;
   return Number.isSafeInteger(value) ? value : undefined;
+}
+
+function readPersistenceWriteMode(node: EntityDeclarationNode): NativePersistenceWriteMode | undefined {
+  const queued = hasAnnotation(node, "queued");
+  const transactional = hasAnnotation(node, "transactional");
+  // 冲突已由校验报告；模型只在唯一选择时携带写法，避免生成器猜测。
+  // Conflicts are reported by validation; the model carries a mode only when it is unambiguous.
+  if (queued === transactional) return undefined;
+  return queued ? "queued" : "transactional";
 }
 
 function readFieldStorage(field: FieldDeclarationNode): NativeFieldModel["storage"] {

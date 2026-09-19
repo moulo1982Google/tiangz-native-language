@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0 Core / 0.16.0 Extension
+
+- 新增持久化写法标记`@queued`与`@transactional`，须与`@persistent`同用且互斥。`@queued`只生成排队写入仓库，`@transactional`只生成事务写入仓库；同一记录不能混用排队写和带版本校验的写入。
+- 未标记的实体生成文本与0.16.0逐字节一致，下游重新生成不产生差异；运行时需要TiangZ提供`DbProxyQueuedEntityRepository`和`DbProxyTransactionalEntityRepository`。
+- Language Server补充两个标记的补全、诊断和Hover写法说明及示例。
+
 ## 0.16.0 Core / 0.15.0 Extension
 
 - 新增`@persistent(version)`与`@transient`语义，生成版本化Snapshot Codec和TiangZ通用DBProxy Repository工厂。

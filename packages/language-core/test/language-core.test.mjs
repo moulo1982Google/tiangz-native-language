@@ -215,6 +215,57 @@ abstract entity Entity { @transient(1) readonly id: u32; }
   assert.ok(codes.has("native.semantic.transient-arguments"));
 });
 
+test("projects persistence write-mode markers and rejects ambiguous write paths", () => {
+  const model = assertValidNativeWorkspace([{
+    uri: "Modes.native",
+    text: `namespace demo;
+abstract entity Entity { readonly id: u32; @transient readonly instanceId: u32; }
+@typeId(1)
+@persistent(1)
+entity Plain extends Entity { value: u32; }
+@typeId(2)
+@persistent(1)
+@queued
+entity Position extends Entity { mapId: u32; }
+@typeId(3)
+@persistent(2)
+@transactional
+entity Wallet extends Entity { gold: u32; }
+`,
+  }]);
+  const byName = new Map(model.entities.map((entity) => [entity.name, entity]));
+  // 普通记录不携带该键，旧版本消费者看到的模型保持不变。 / Ordinary records omit the key so older consumers see an unchanged model.
+  assert.equal("persistenceWriteMode" in byName.get("Plain"), false);
+  assert.equal(byName.get("Position")?.persistenceWriteMode, "queued");
+  assert.equal(byName.get("Wallet")?.persistenceWriteMode, "transactional");
+  assert.equal(byName.get("Wallet")?.persistenceVersion, 2);
+
+  const invalid = analyzeNativeWorkspace([{
+    uri: "InvalidModes.native",
+    text: `namespace demo;
+@typeId(4)
+@queued
+entity Unsaved { value: u32; }
+@typeId(5)
+@persistent(1)
+@queued
+@transactional
+entity Both { value: u32; }
+@typeId(6)
+@persistent(1)
+@transactional(1)
+entity WithArgument { value: u32; }
+`,
+  }]);
+  const byCode = new Map();
+  for (const diagnostic of invalid.diagnostics) byCode.set(diagnostic.code, (byCode.get(diagnostic.code) ?? 0) + 1);
+  assert.equal(byCode.get("native.semantic.write-mode-requires-persistent"), 1);
+  assert.equal(byCode.get("native.semantic.conflicting-write-modes"), 1);
+  assert.equal(byCode.get("native.semantic.write-mode-arguments"), 1);
+  assert.equal(invalid.model.entities.find((entity) => entity.name === "Both")?.persistenceWriteMode, undefined);
+  assert.equal(invalid.model.entities.find((entity) => entity.name === "Unsaved")?.persistenceWriteMode, undefined);
+});
+
 test("finds the smallest available typeId and rejects ambiguous workspaces", () => {
   assert.deepEqual(findNextAvailableTypeId([1, 3, undefined]), { status: "available", typeId: 2 });
   assert.deepEqual(findNextAvailableTypeId([1, 2, 2, 4, 4]), {

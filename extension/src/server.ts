@@ -440,6 +440,8 @@ function annotationCompletions(): CompletionItem[] {
     { label: "component", detail: "将 Entity 标记为 Component", kind: CompletionItemKind.Property },
     { label: "replicated", detail: "为固定字段 Entity 生成帧尾脏掩码和强类型 Delta", kind: CompletionItemKind.Property },
     { label: "persistent", detail: "生成有版本的 Snapshot Codec 与 Repository 描述", kind: CompletionItemKind.Property, insertText: "persistent(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
+    { label: "queued", detail: "持久化记录只能排队写入（Redis AOF 确认后异步落 PG），不能直接保存或加入事务", kind: CompletionItemKind.Property },
+    { label: "transactional", detail: "持久化记录只能通过事务写入，不生成单独保存方法", kind: CompletionItemKind.Property },
     { label: "memberId", detail: "为复制字段分配稳定的 1..63 成员编号", kind: CompletionItemKind.Property, insertText: "memberId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
     { label: "hot", detail: "将字段标记为高频访问数据，供 Rust 热池布局生成", kind: CompletionItemKind.Property },
     { label: "cold", detail: "将字段标记为低频访问数据，供 Rust 冷池布局生成", kind: CompletionItemKind.Property },
@@ -541,6 +543,7 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
     `- **父实体**：${entity.parent ? markdownCode(entity.parent) : "无"}`,
     `- **帧尾复制**：${entity.replicated ? "已启用，将生成 dirty mask 和强类型 Delta" : "未启用"}`,
     `- **持久化**：${entity.persistenceVersion === undefined ? "未声明" : `schema 版本 ${markdownCode(String(entity.persistenceVersion))}，生成严格 Codec 与 Repository 描述`}`,
+    ...(entity.persistenceVersion === undefined ? [] : [`- **写法**：${describePersistenceWriteMode(entity)}`]),
     `- **字段**：本级 ${ownFieldCount} 个，继承 ${inheritedFieldCount} 个，共 ${flattenedFields.length} 个`,
     `- **存储布局**：显式热字段 ${hotFieldCount} 个，显式冷字段 ${coldFieldCount} 个${hotFieldCount + coldFieldCount > 0 ? "；codegen 将额外生成 Hot/Cold 候选布局" : "；保持默认布局"}`,
   ];
@@ -561,7 +564,7 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
         "",
         `const repository = CreateNative${entity.name}Repository(process.name);`,
         `const loaded = await repository.Load(String(${toNativeCamelCase(entity.name)}.id));`,
-        `const saved = await repository.Save(String(${toNativeCamelCase(entity.name)}.id), ${toNativeCamelCase(entity.name)}, loaded?.revision ?? 0n);`,
+        persistenceWriteExample(entity),
         "```",
         "",
         "`instanceId`等`@transient`字段不会进入快照；恢复后的Entity创建和生命周期仍由业务所有者负责。",
@@ -573,6 +576,36 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
   appendGeneratedSymbols(lines, projectNativeEntitySymbols(entity));
   if (showSource) lines.push("", `**声明文件**：${markdownCode(entity.sourceFile)}`);
   return lines.join("\n");
+}
+
+function describePersistenceWriteMode(entity: NativeEntityModel): string {
+  switch (entity.persistenceWriteMode) {
+    case "queued":
+      return "`@queued`：只能排队写入，Redis AOF 确认后异步落 PG；不能直接保存或加入事务";
+    case "transactional":
+      return "`@transactional`：只能通过事务写入；不生成单独保存方法";
+    default: {
+      const ordinary: undefined = entity.persistenceWriteMode;
+      void ordinary;
+      return "普通写入：可直接保存或加入事务，不能排队写入";
+    }
+  }
+}
+
+function persistenceWriteExample(entity: NativeEntityModel): string {
+  const value = toNativeCamelCase(entity.name);
+  const key = `String(${value}.id)`;
+  switch (entity.persistenceWriteMode) {
+    case "queued":
+      return `await repository.Enqueue(${key}, ${value});`;
+    case "transactional":
+      return `await records.CommitRecords({ operationId, writes: [repository.TransactionWrite(${key}, ${value}, loaded?.revision ?? 0n)], result });`;
+    default: {
+      const ordinary: undefined = entity.persistenceWriteMode;
+      void ordinary;
+      return `const saved = await repository.Save(${key}, ${value}, loaded?.revision ?? 0n);`;
+    }
+  }
 }
 
 function describeFieldModel(entity: NativeEntityModel, field: NativeFieldModel, signature: string): string {

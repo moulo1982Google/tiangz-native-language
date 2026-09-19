@@ -43,6 +43,7 @@ export type {
   NativeFieldModel,
   NativeOperationModel,
   NativeOperationParameterModel,
+  NativePersistenceWriteMode,
   NativeSemanticModel,
   NativeSource,
   NativeWorkspaceAnalysis,

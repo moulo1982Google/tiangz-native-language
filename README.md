@@ -57,6 +57,25 @@ entity Item extends Entity {
 
 `@persistent(version)`会生成强类型Snapshot、严格JSON Codec和TiangZ通用DBProxy Repository工厂。字段默认进入快照；`@transient`用于排除`instanceId`等仅在本次运行有效的字段。当前Codec只读取完整的当前版本，因此持久字段的增加、删除、改名或改类型都必须递增版本并提供迁移；单纯修改运行时数据不改变版本。该能力不替代复杂查询、索引和跨记录事务的领域Repository。
 
+`@persistent`实体可以再加一个写法标记，限制生成的Repository只提供对应写法。选择用哪种写法由数据本身的语义决定，何时写入、哪些记录组成一次事务仍由业务代码决定：
+
+| 标记 | 生成的写入方法 | 适合 |
+| --- | --- | --- |
+| 不加 | `Save`、`TransactionWrite` | 普通数据；可直接保存，也可加入事务 |
+| `@queued` | `Enqueue` | 位置、普通进度等允许小范围回退的数据；Redis AOF确认后异步落PG |
+| `@transactional` | `TransactionWrite` | 货币、背包等只能随事务回执修改的数据 |
+
+`@queued`与`@transactional`互斥，且必须与`@persistent`同用。排队写不带版本校验，落库时直接覆盖；同一记录一旦混用排队写和带版本校验的写入，迟到的排队数据可能覆盖已确认的新数据，所以一个记录只允许一种写法。开发期更换写法前应排空DBProxy排队积压或清库。
+
+```native
+@typeId(10)
+@persistent(1)
+@transactional
+entity Wallet extends Entity {
+  gold: u32 = 0;
+}
+```
+
 高频批处理实体可以在字段上使用`@hot`和`@cold`。codegen会保留现有`XxxData`兼容布局，并额外生成`XxxHotData`、`XxxColdData`和`XxxSplitData`，供主工程用同一份schema验证类型分池与冷热分离。未标记字段在Split候选中按冷数据处理；冷热标记改变Rust数据布局，不能热更。
 
 Native op支持`i64`参数和返回值，并在TypeScript侧映射为`bigint`，不会经过可能丢失精度的`number`。
