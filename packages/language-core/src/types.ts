@@ -109,6 +109,9 @@ export interface NativeFieldModel {
   readonly range: SourceRange;
 }
 
+/** `@queued`只允许排队写入；`@transactional`只允许事务写入。 / `@queued` allows queued writes only; `@transactional` allows transactional writes only. */
+export type NativePersistenceWriteMode = "queued" | "transactional";
+
 export interface NativeEntityModel {
   readonly namespace: string;
   readonly sourceFile: string;
@@ -116,6 +119,8 @@ export interface NativeEntityModel {
   readonly component: boolean;
   readonly replicated: boolean;
   readonly persistenceVersion?: number;
+  /** 缺省为普通写入；标记后生成器只暴露对应写法。 / Omitted for ordinary writes; markers restrict generated write methods. */
+  readonly persistenceWriteMode?: NativePersistenceWriteMode;
   readonly abstract: boolean;
   readonly name: string;
   readonly parent?: string;

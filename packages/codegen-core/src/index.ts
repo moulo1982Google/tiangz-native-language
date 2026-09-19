@@ -767,8 +767,9 @@ function renderTypeScriptPersistence(
   const fieldNames = fields.map((field) => `"${field.name}"`).join(", ");
   const schemaName = `${entity.namespace}.${entity.name}`;
   const recordNamespace = `entity.${entity.namespace}.${toNativeSnakeCase(entity.name)}`.toLowerCase();
+  const repository = persistenceRepository(entity);
   return `${options.banner}\n\n\
-import { DbProxyEntityRepository, utf8Decode, utf8Encode, type VersionedEntityCodec } from "${options.persistenceRuntimeImport}";\n\
+import { ${repository.className}, utf8Decode, utf8Encode, type VersionedEntityCodec } from "${options.persistenceRuntimeImport}";\n\
 import { ${api.refName} } from "./${api.fileName.replace(/\.ts$/, "")}";\n\n\
 export interface ${snapshotName} {\n${properties}\n}\n\n\
 /** 由.native版本化结构生成；DBProxy只保存其不透明字节。 / Generated from the versioned .native shape; DBProxy stores only opaque bytes. */\n\
@@ -793,9 +794,9 @@ export const ${codecName}: VersionedEntityCodec<${snapshotName}, ${api.refName}>
     return envelope.data;\n\
   },\n\
 };\n\n\
-/** 创建该Entity的通用DBProxy Repository；复杂查询和跨记录事务应另写领域Repository。 / Creates the generic DBProxy Repository; queries and cross-record transactions need a domain Repository. */\n\
-export function CreateNative${entity.name}Repository(processName: string): DbProxyEntityRepository<${snapshotName}, ${api.refName}> {\n\
-  return new DbProxyEntityRepository(${codecName}, processName);\n\
+${repository.documentation}\n\
+export function CreateNative${entity.name}Repository(processName: string): ${repository.className}<${snapshotName}, ${api.refName}> {\n\
+  return new ${repository.className}(${codecName}, processName);\n\
 }\n\n\
 function validateSnapshot(value: unknown): asserts value is ${snapshotName} {\n\
   const record = requireRecord(value, "${schemaName}");\n\
@@ -810,6 +811,33 @@ function requireRecord(value: unknown, name: string): Record<string, unknown> {\
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new TypeError(\`\${name} must be an object\`);\n\
   return value as Record<string, unknown>;\n\
 }\n`;
+}
+
+/** 按写法标记选择运行时仓库类型；普通写法的生成文本保持与旧版本逐字节一致。
+ * Selects the runtime repository by write-mode marker; ordinary output stays byte-identical to older versions.
+ */
+function persistenceRepository(entity: NativeEntityModel): { readonly className: string; readonly documentation: string } {
+  switch (entity.persistenceWriteMode) {
+    case "queued":
+      return {
+        className: "DbProxyQueuedEntityRepository",
+        documentation: "/** @queued：只能排队写入，Redis AOF确认后由DBProxy异步落PG；不能直接保存或加入事务，崩溃或换服后可能回退到最近落库状态。 / @queued: queued writes only, acknowledged by Redis AOF and persisted to PG asynchronously; no direct saves or transactions, and crashes or ownership moves may roll back to the last persisted state. */",
+      };
+    case "transactional":
+      return {
+        className: "DbProxyTransactionalEntityRepository",
+        documentation: "/** @transactional：只能通过事务写入，用TransactionWrite生成记录并交给CommitRecords；不提供单独保存。 / @transactional: writes only through transactions; build records with TransactionWrite for CommitRecords, with no standalone save. */",
+      };
+    default: {
+      // 新增写法时此处编译失败，必须显式决定其生成物。 / A new mode fails to compile here and must choose its output explicitly.
+      const ordinary: undefined = entity.persistenceWriteMode;
+      void ordinary;
+      return {
+        className: "DbProxyEntityRepository",
+        documentation: "/** 创建该Entity的通用DBProxy Repository；复杂查询和跨记录事务应另写领域Repository。 / Creates the generic DBProxy Repository; queries and cross-record transactions need a domain Repository. */",
+      };
+    }
+  }
 }
 
 function renderTypeScriptPersistenceValidation(field: NativeProjectedEntityField): string {

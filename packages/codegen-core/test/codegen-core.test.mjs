@@ -166,3 +166,59 @@ entity Item extends Entity { configId: u32; count: u32 = 1; }
   assert.match(persistence, /Capture\(value: NativeItemRef\)/);
   assert.match(persistence, /persistence fields are incomplete/);
 });
+
+test("restricts generated repositories by persistence write mode", () => {
+  const modeSchema = assertValidNativeWorkspace([
+    {
+      uri: "Entity.native",
+      text: `namespace demo;
+abstract entity Entity { readonly id: u32; @transient readonly instanceId: u32; }
+`,
+    },
+    {
+      uri: "Modes.native",
+      text: `namespace demo;
+@typeId(2)
+@persistent(1)
+entity Item extends Entity { count: u32 = 1; }
+@typeId(3)
+@persistent(1)
+@queued
+entity Position extends Entity { mapId: u32; }
+@typeId(4)
+@persistent(1)
+@transactional
+entity Wallet extends Entity { gold: u32; }
+`,
+    },
+    { uri: "Ops.native", text: "namespace native; op EntityCreate(entityType: u32, values: f64[]): u32;" },
+  ]);
+  const files = generateNativeFiles(modeSchema);
+  const persistenceOf = (name) => files.find((file) => file.relativePath.endsWith(`Native${name}Persistence.ts`))?.content ?? "";
+
+  // 普通写法保持旧版本生成文本，避免下游仓库重新生成时出现无关差异。
+  // Ordinary output keeps the previous text so downstream regeneration has no unrelated churn.
+  const plain = persistenceOf("Item");
+  assert.match(plain, /^import \{ DbProxyEntityRepository, utf8Decode, utf8Encode, type VersionedEntityCodec \} from "\.\.\/\.\.\/\.\.\/core\/public";$/m);
+  assert.match(plain, /^\/\*\* 创建该Entity的通用DBProxy Repository；复杂查询和跨记录事务应另写领域Repository。 \/ Creates the generic DBProxy Repository; queries and cross-record transactions need a domain Repository\. \*\/\nexport function CreateNativeItemRepository\(processName: string\): DbProxyEntityRepository<NativeItemPersistenceSnapshot, NativeItemRef> \{\n  return new DbProxyEntityRepository\(NativeItemPersistenceCodec, processName\);\n\}$/m);
+  assert.doesNotMatch(plain, /Queued|Transactional/);
+
+  const queued = persistenceOf("Position");
+  assert.match(queued, /import \{ DbProxyQueuedEntityRepository, utf8Decode/);
+  assert.match(queued, /CreateNativePositionRepository\(processName: string\): DbProxyQueuedEntityRepository<NativePositionPersistenceSnapshot, NativePositionRef>/);
+  assert.match(queued, /new DbProxyQueuedEntityRepository\(NativePositionPersistenceCodec, processName\)/);
+  assert.match(queued, /@queued：只能排队写入/);
+  assert.doesNotMatch(queued, /DbProxyEntityRepository|DbProxyTransactionalEntityRepository/);
+
+  const transactional = persistenceOf("Wallet");
+  assert.match(transactional, /import \{ DbProxyTransactionalEntityRepository, utf8Decode/);
+  assert.match(transactional, /CreateNativeWalletRepository\(processName: string\): DbProxyTransactionalEntityRepository<NativeWalletPersistenceSnapshot, NativeWalletRef>/);
+  assert.match(transactional, /@transactional：只能通过事务写入/);
+  assert.doesNotMatch(transactional, /DbProxyEntityRepository|DbProxyQueuedEntityRepository/);
+
+  // 编解码部分与写法无关。 / The codec is independent of the write mode.
+  for (const content of [plain, queued, transactional]) {
+    assert.match(content, /schemaVersion: 1,/);
+    assert.match(content, /persistence fields are incomplete/);
+  }
+});
