@@ -2,6 +2,10 @@
 
 TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
+宿主 0.7 兼容工作树继续使用插件自己的版本：当前语言核心 0.17.0、VSIX 0.16.0。`npm run package:extension` 从扩展清单生成 VSIX 文件名，包内 `extension/dist/build-info.json` 记录实际语言核心/扩展版本及运行 bundle 的 SHA-256。该信息用于联合验收，不代表包已发布或已安装；宿主固定依赖的核心版本必须另行核对。
+
+显式选定已安装依赖的宿主后，执行 `node tools/check-host-compatibility.mjs --engine <宿主工作树>`。该命令比较普通/持久化输出与宿主已安装核心，检查 queued/transactional 不改变 Rust/Host op 生成文本，并用宿主的 TypeScript 与配置编译候选 TS。产物只写本仓库 `dist/host-compatibility`；它不替代 Rust 运行验收，也不修改宿主依赖或 Generated。
+
 仓库目标不是只给关键字上色，而是让 TiangZ codegen 与编辑器共用同一套 Parser、AST 和 Validator，避免两套语法实现发生偏差。
 
 当前发布策略：仅作为 TiangZ 内部开发工具，通过本地 VSIX 或 GitHub Actions artifact 安装。VS Code Marketplace 与 `1.0.0` 发布计划暂缓，详见[路线图](docs/roadmap.md)。
