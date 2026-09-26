@@ -75,6 +75,7 @@ let sourceRootUris: readonly string[] = [];
 connection.onInitialize((params: InitializeParams): InitializeResult => {
   settings = normalizeSettings(params.initializationOptions);
   sourceRootUris = normalizeSourceRootUris(params.initializationOptions);
+  index.setWorkspaceFolders(params.workspaceFolders?.map(folder => folder.uri) ?? (params.rootUri ? [params.rootUri] : []));
   index.setLimits(settings);
   return {
     capabilities: {
@@ -154,7 +155,7 @@ connection.onCompletion((params): CompletionItem[] => {
   const linePrefix = document.getText({ start: { line: params.position.line, character: 0 }, end: params.position });
   if (/@[A-Za-z_]*$/.test(linePrefix)) return annotationCompletions();
   if (/\bextends\s+[A-Za-z_]*$/.test(linePrefix)) {
-    return uniqueEntityNames().map((name) => ({ label: name, kind: CompletionItemKind.Class }));
+    return uniqueEntityNames(params.textDocument.uri).map((name) => ({ label: name, kind: CompletionItemKind.Class }));
   }
   if (/:\s*[A-Za-z0-9_\[\]]*$/.test(linePrefix)) return typeCompletions();
   return declarationCompletions();
@@ -168,7 +169,7 @@ connection.onHover((params): Hover | null => {
   const current = index.getDocument(params.textDocument.uri);
   const offset = document.offsetAt(params.position);
   const local = current ? describeNodeAt(current, offset) : undefined;
-  const description = local ?? describeGlobal(word);
+  const description = local ?? describeGlobal(word, params.textDocument.uri);
   return description ? { contents: { kind: MarkupKind.Markdown, value: description } } : null;
 });
 
@@ -179,7 +180,7 @@ connection.onDefinition((params): Definition | null => {
   if (!word) return null;
   const nativeDocument = index.getDocument(params.textDocument.uri);
   const target = nativeDocument ? symbolAt(nativeDocument, document.offsetAt(params.position), word) : undefined;
-  return target ? findDefinition(target) : null;
+  return target ? findDefinition(target, params.textDocument.uri) : null;
 });
 
 connection.onReferences((params): Location[] => {
@@ -189,8 +190,8 @@ connection.onReferences((params): Location[] => {
   if (!word) return [];
   const nativeDocument = index.getDocument(params.textDocument.uri);
   const target = nativeDocument ? symbolAt(nativeDocument, document.offsetAt(params.position), word) : undefined;
-  if (!target || !findDefinition(target)) return [];
-  return findReferences(target, params.context.includeDeclaration);
+  if (!target || !findDefinition(target, params.textDocument.uri)) return [];
+  return findReferences(target, params.context.includeDeclaration, params.textDocument.uri);
 });
 
 connection.onSignatureHelp((params): SignatureHelp | null => {
@@ -204,7 +205,7 @@ connection.onSignatureHelp((params): SignatureHelp | null => {
     return {
       signatures: [{
         label: "@typeId(id: integer)",
-        documentation: "为具体 Entity 分配一个 1..65535 范围内、工作区全局唯一的类型编号。",
+        documentation: "为具体 Entity 分配一个 1..65535 范围内、所属工程唯一的类型编号。不同工作区文件夹独立校验。",
         parameters: [{ label: "id: integer", documentation: "用于 Rust 存储和 TS 句柄创建的 Entity 类型编号。" }],
       }],
       activeSignature: 0,
@@ -238,7 +239,7 @@ connection.onSignatureHelp((params): SignatureHelp | null => {
   if (!operationMatch) return null;
   const operationName = operationMatch[1]!;
   const activeParameter = (operationMatch[2]!.match(/,/g) ?? []).length;
-  const operation = index.getModel().operations.find((candidate) => candidate.name === operationName);
+  const operation = index.getModel(params.textDocument.uri).operations.find((candidate) => candidate.name === operationName);
   if (operation) {
     const parameters = operation.params.map((parameter) => `${parameter.name}: ${parameter.type}`);
     return {
@@ -289,7 +290,7 @@ connection.onCodeAction((params): CodeAction[] => {
   );
   if (relevantDiagnostics.length === 0) return [];
 
-  const allocation = findNextAvailableTypeId(index.getModel().entities.map((entity) => entity.typeId));
+  const allocation = findNextAvailableTypeId(index.getModel(params.textDocument.uri).entities.map((entity) => entity.typeId));
   return relevantDiagnostics.flatMap((diagnostic): CodeAction[] => {
     const entity = findEntityAt(nativeDocument, document.offsetAt(diagnostic.range.start));
     if (!entity || entity.abstract || entity.annotations.some((annotation) => annotation.name.name === "typeId")) return [];
@@ -464,8 +465,8 @@ function declarationCompletions(): CompletionItem[] {
   ];
 }
 
-function uniqueEntityNames(): readonly string[] {
-  return [...new Set(index.getModel().entities.map((entity) => entity.name))].sort((left, right) => left.localeCompare(right, "en"));
+function uniqueEntityNames(uri: string): readonly string[] {
+  return [...new Set(index.getModel(uri).entities.map((entity) => entity.name))].sort((left, right) => left.localeCompare(right, "en"));
 }
 
 function wordAt(document: TextDocument, position: Position): string | undefined {
@@ -484,10 +485,10 @@ function describeNodeAt(document: NativeDocument, offset: number): string | unde
     if (declaration.kind === "entity") {
       if (declaration.parent && containsOffset(declaration.parent.range, offset)) {
         const parentName = declaration.parent.name;
-        const parent = index.getModel().entities.find((entity) => entity.name === parentName);
+        const parent = index.getModel(document.uri).entities.find((entity) => entity.name === parentName);
         if (parent) return describeEntityModel(parent);
       }
-      const entity = index.getModel().entities.find(
+      const entity = index.getModel(document.uri).entities.find(
         (candidate) => candidate.sourceFile === document.uri && candidate.name === declaration.name.name,
       );
       for (const field of declaration.fields) {
@@ -506,7 +507,7 @@ function describeNodeAt(document: NativeDocument, offset: number): string | unde
     }
     const parameters = declaration.parameters.map((parameter) => `${parameter.name.name}: ${parameter.type.name}`).join(", ");
     const signature = `\`op ${declaration.name.name}(${parameters}): ${declaration.returnType.name}\``;
-    const operation = index.getModel().operations.find(
+    const operation = index.getModel(document.uri).operations.find(
       (candidate) => candidate.sourceFile === document.uri && candidate.name === declaration.name.name,
     );
     return operation ? describeOperationModel(operation, false) : signature;
@@ -514,10 +515,10 @@ function describeNodeAt(document: NativeDocument, offset: number): string | unde
   return undefined;
 }
 
-function describeGlobal(word: string): string | undefined {
-  const entity = index.getModel().entities.find((candidate) => candidate.name === word);
+function describeGlobal(word: string, uri: string): string | undefined {
+  const entity = index.getModel(uri).entities.find((candidate) => candidate.name === word);
   if (entity) return describeEntityModel(entity);
-  const operation = index.getModel().operations.find((candidate) => candidate.name === word);
+  const operation = index.getModel(uri).operations.find((candidate) => candidate.name === word);
   if (operation) {
     return describeOperationModel(operation, true);
   }
@@ -527,7 +528,7 @@ function describeGlobal(word: string): string | undefined {
 function describeEntityModel(entity: NativeEntityModel, showSource = true): string {
   const parent = entity.parent ? ` extends ${entity.parent}` : "";
   const kind = entity.abstract ? "抽象实体" : entity.component ? "Component 实体" : "实体";
-  const api = projectNativeEntityApi(index.getModel(), entity);
+  const api = projectNativeEntityApi(index.getModel(entity.sourceFile), entity);
   const flattenedFields = api.fields;
   const ownFieldCount = entity.fields.length;
   const inheritedFieldCount = Math.max(0, flattenedFields.length - ownFieldCount);
@@ -609,7 +610,7 @@ function persistenceWriteExample(entity: NativeEntityModel): string {
 }
 
 function describeFieldModel(entity: NativeEntityModel, field: NativeFieldModel, signature: string): string {
-  const api = projectNativeEntityApi(index.getModel(), entity);
+  const api = projectNativeEntityApi(index.getModel(entity.sourceFile), entity);
   const projectedField = api.fields.find(
     (entry) => entry.ownerName === entity.name && entry.name === field.name,
   );
@@ -772,8 +773,8 @@ function symbolAt(document: NativeDocument, offset: number, word: string): Symbo
   return undefined;
 }
 
-function findDefinition(target: SymbolTarget): Definition | null {
-  for (const document of index.getDocuments()) {
+function findDefinition(target: SymbolTarget, uri: string): Definition | null {
+  for (const document of index.getDocuments(uri)) {
     for (const declaration of document.declarations) {
       if (declaration.kind === target.kind && declaration.name.name === target.name) {
         return { uri: document.uri, range: toRange(declaration.name.range) } satisfies Location;
@@ -783,10 +784,10 @@ function findDefinition(target: SymbolTarget): Definition | null {
   return null;
 }
 
-function findReferences(target: SymbolTarget, includeDeclaration: boolean): Location[] {
+function findReferences(target: SymbolTarget, includeDeclaration: boolean, uri: string): Location[] {
   const locations: Location[] = [];
   const seen = new Set<string>();
-  for (const document of index.getDocuments()) {
+  for (const document of index.getDocuments(uri)) {
     for (const declaration of document.declarations) {
       if (includeDeclaration && declaration.kind === target.kind && declaration.name.name === target.name) {
         add(document.uri, declaration.name.range);

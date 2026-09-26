@@ -31,6 +31,8 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - 根据 `@component` 自动区分 Component 生命周期与独立 handle 生命周期的 Hover 示例
 - 有界缓存、输入限制与性能回归测试
 
+一个 VS Code 窗口可以同时打开多个独立工程或 Git worktree。语言服务按所属工作区文件夹分别校验 Entity、op 与 typeId；Hover、补全、定义、引用和编号修复也使用同一作用域。嵌套工作区采用最长路径匹配，工作区外打开的文件独立校验。同一工程的重复符号仍报错。增删文件夹后自动重建索引和文件监听，保持单个语言服务器与总扫描上限；自定义 codegen 始终使用当前文件所属工程。
+
 TiangZ 主仓库固定依赖对应 Tag；`codegen_native_data` 只负责扫描、落盘和 `rustfmt`，全部 Rust/TypeScript 内容由共享 codegen-core 生成。
 
 固定字段需要帧尾增量同步时，使用稳定的成员编号：

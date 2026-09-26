@@ -36,6 +36,7 @@ interface ServerStats extends NativeSettings {
 }
 
 let client: LanguageClient | undefined;
+let stopClient: (() => Promise<void>) | undefined;
 let activeCodegenExecution: vscode.TaskExecution | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -59,20 +60,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       configurationSection: "tiangzNative",
       fileEvents: watchers,
     },
-    initializationOptions: {
-      ...settings,
-      sourceRootUris: resolveSourceRootUris(settings.sourceRoots),
+    initializationOptions: () => {
+      const current = readSettings();
+      return { ...current, sourceRootUris: resolveSourceRootUris(current.sourceRoots) };
     },
     outputChannelName: "TiangZ Native 语言服务器",
   };
 
-  client = new LanguageClient(
+  const activeClient = new LanguageClient(
     "tiangzNativeLanguageServer",
     "TiangZ Native 语言服务器",
     serverOptions,
     clientOptions,
   );
-  context.subscriptions.push(...watchers);
+  client = activeClient;
+  let stopping = false;
+  let refreshRequested = false;
+  let refreshing: Promise<void> | undefined;
+  let stopPromise: Promise<void> | undefined;
+  const ready = (async () => {
+    await activeClient.start();
+    await discoverWorkspaceFiles(activeClient, settings);
+  })();
+  // 合并工作区变更；始终只保留一个服务器和一次扫描。 / Coalesce folder changes into one server and one scan at a time.
+  const refreshWorkspace = (): Promise<void> => {
+    refreshRequested = true;
+    if (refreshing) return refreshing;
+    refreshing = (async () => {
+      await ready;
+      while (refreshRequested && !stopping) {
+        refreshRequested = false;
+        await activeClient.stop();
+        if (stopping) break;
+        for (const watcher of watchers) watcher.dispose();
+        const current = readSettings();
+        watchers.splice(0, watchers.length, ...createNativeFileWatchers(current.sourceRoots));
+        await activeClient.start();
+        await discoverWorkspaceFiles(activeClient, current);
+      }
+    })().finally(() => { refreshing = undefined; });
+    return refreshing;
+  };
+  stopClient = () => {
+    stopping = true;
+    if (client === activeClient) client = undefined;
+    return stopPromise ??= (async () => {
+      await Promise.allSettled([ready, refreshing]);
+      await activeClient.stop();
+      for (const watcher of watchers) watcher.dispose();
+    })();
+  };
+  const stopThisClient = stopClient;
+  context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+    void refreshWorkspace().catch((error: unknown) => {
+      if (!stopping) console.error("TiangZ Native 工作区更新失败", error);
+    });
+  }));
   context.subscriptions.push(vscode.commands.registerCommand("tiangzNative.showServerStats", showServerStats));
   context.subscriptions.push(vscode.commands.registerCommand(RUN_CODEGEN_COMMAND, runCodegen));
   context.subscriptions.push(vscode.tasks.onDidEndTaskProcess((event) => {
@@ -85,23 +128,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (event.execution === activeCodegenExecution) activeCodegenExecution = undefined;
   }));
   context.subscriptions.push({
-    dispose: () => {
-      const activeClient = client;
-      client = undefined;
-      if (activeClient) void activeClient.stop();
-    },
+    dispose: () => { void stopThisClient(); },
   });
 
-  await client.start();
-  void discoverWorkspaceFiles(client, settings).catch((error: unknown) => {
-    if (client) console.error("TiangZ Native 工作区扫描失败", error);
-  });
+  await ready;
 }
 
 export async function deactivate(): Promise<void> {
-  const activeClient = client;
-  client = undefined;
-  if (activeClient) await activeClient.stop();
+  await stopClient?.();
 }
 
 async function discoverWorkspaceFiles(activeClient: LanguageClient, settings: NativeSettings): Promise<void> {
