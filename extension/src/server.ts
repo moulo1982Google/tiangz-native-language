@@ -440,7 +440,7 @@ function annotationCompletions(): CompletionItem[] {
     { label: "component", detail: "将 Entity 标记为 Component", kind: CompletionItemKind.Property },
     { label: "replicated", detail: "为固定字段 Entity 生成帧尾脏掩码和强类型 Delta", kind: CompletionItemKind.Property },
     { label: "persistent", detail: "生成有版本的 Snapshot Codec 与 Repository 描述", kind: CompletionItemKind.Property, insertText: "persistent(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
-    { label: "queued", detail: "持久化记录只能排队写入（Redis AOF 确认后异步落 PG），不能直接保存或加入事务", kind: CompletionItemKind.Property },
+    { label: "queued", detail: "只能排队写入；确认由 DBProxy backlog.enqueueAck 决定（默认 aof，memory 仅内存），不代表 PG 提交；不能直接保存或加入事务", kind: CompletionItemKind.Property },
     { label: "transactional", detail: "持久化记录只能通过事务写入，不生成单独保存方法", kind: CompletionItemKind.Property },
     { label: "memberId", detail: "为复制字段分配稳定的 1..63 成员编号", kind: CompletionItemKind.Property, insertText: "memberId(${1:1})", insertTextFormat: InsertTextFormat.Snippet },
     { label: "hot", detail: "将字段标记为高频访问数据，供 Rust 热池布局生成", kind: CompletionItemKind.Property },
@@ -581,7 +581,7 @@ function describeEntityModel(entity: NativeEntityModel, showSource = true): stri
 function describePersistenceWriteMode(entity: NativeEntityModel): string {
   switch (entity.persistenceWriteMode) {
     case "queued":
-      return "`@queued`：只能排队写入，Redis AOF 确认后异步落 PG；不能直接保存或加入事务";
+      return "`@queued`：只能排队写入；DBProxy `backlog.enqueueAck` 决定确认档位：默认 `aof` 等 Redis 本地 AOF 落盘，`memory` 只确认 Redis 内存，两者都不表示 PG 已提交。不能直接保存或加入事务；Redis 崩溃可能丢失 memory 档尚未落盘的已确认入队。测试用 memory 存储后端不提供持久性。";
     case "transactional":
       return "`@transactional`：只能通过事务写入；不生成单独保存方法";
     default: {

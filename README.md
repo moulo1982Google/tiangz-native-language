@@ -66,10 +66,12 @@ entity Item extends Entity {
 | 标记 | 生成的写入方法 | 适合 |
 | --- | --- | --- |
 | 不加 | `Save`、`TransactionWrite` | 普通数据；可直接保存，也可加入事务 |
-| `@queued` | `Enqueue` | 位置、普通进度等允许小范围回退的数据；Redis AOF确认后异步落PG |
+| `@queued` | `Enqueue` | 位置、普通进度等允许小范围回退的数据；按 DBProxy 部署的确认档位接收后异步落 PG，不代表 PG 已提交 |
 | `@transactional` | `TransactionWrite` | 货币、背包等只能随事务回执修改的数据 |
 
-`@queued`与`@transactional`互斥，且必须与`@persistent`同用。排队写不带版本校验，落库时直接覆盖；同一记录一旦混用排队写和带版本校验的写入，迟到的排队数据可能覆盖已确认的新数据，所以一个记录只允许一种写法。开发期更换写法前应排空DBProxy排队积压或清库。
+`@queued`与`@transactional`互斥，且必须与`@persistent`同用。排队写不带版本校验，落库时直接覆盖；同一记录一旦混用排队写和带版本校验的写入，迟到的排队数据可能覆盖已确认的新数据，所以一个记录只允许一种写法。更换生产记录的写法需要明确的停写、积压处理与数据迁移方案；排空积压本身不是完整迁移，清库不是生产迁移路径。
+
+`@queued` 不选择持久性档位。DBProxy 的 `postgresRedis` 后端由部署配置 `backlog.enqueueAck` 统一决定：默认 `aof` 等 Redis 本地 AOF 落盘，`memory` 写入 Redis 内存即确认，Redis 崩溃可能丢失尚未落盘的已确认入队。两档都不表示 PostgreSQL 已提交，成功响应也不携带档位；业务必须核对部署契约。测试用 `memory` 存储后端是另一项设置，只保存在进程内，不提供持久性。
 
 ```native
 @typeId(10)
