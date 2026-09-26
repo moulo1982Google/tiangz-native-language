@@ -37,7 +37,8 @@ exports.run = async () => {
     check("two installed-workspace indexes: Problems, Hover and definition remain local");
 
     await replace(collision, "namespace demo; @typeId(42) entity Collision extends Entity {}\n");
-    await until(() => nativeErrors(duplicate).some(item => code(item) === "native.semantic.duplicate-type-id"), "duplicate type ID within first folder");
+    // 校验器在后发现的声明上标记重复；磁盘扫描与已开文件顺序不固定。 / The later-discovered declaration owns the duplicate diagnostic; discovery order is not fixed.
+    await until(() => [duplicate, unitUris[0]].some(uri => nativeErrors(uri).some(item => code(item) === "native.semantic.duplicate-type-id")), "duplicate type ID within first folder");
     assert.equal(nativeErrors(unitUris[1]).length, 0);
     await replace(collision, "namespace demo; @typeId(43) entity Collision extends Entity {}\n");
     await until(() => nativeErrors(duplicate).length === 0 && nativeErrors(unitUris[0]).length === 0, "Problems clear after type ID repair");

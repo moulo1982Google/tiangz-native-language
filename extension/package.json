@@ -2,7 +2,7 @@
   "name": "tiangz-native-language",
   "displayName": "TiangZ Native Language",
   "description": "为 TiangZ .native Entity 与 Native op schema 提供中文语言支持",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "publisher": "moulo",
   "author": "moulo",
   "license": "Apache-2.0",

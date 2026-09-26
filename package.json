@@ -1,6 +1,6 @@
 {
   "name": "@tiangz/native-language-core",
-  "version": "0.17.1-rc.1",
+  "version": "0.17.1-rc.2",
   "description": "TiangZ .native 语言共享的解析器、AST、校验器与代码生成命名投影",
   "author": "moulo",
   "license": "Apache-2.0",

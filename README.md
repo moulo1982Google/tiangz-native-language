@@ -1,6 +1,6 @@
 # TiangZ Native Language
 
-本地 0.7 联合候选：共享 Core `0.17.1-rc.1`，VSIX `0.16.1`。预发行 VSIX 在 `npm run build:extension` 后通过 `node tools/package-extension.mjs --pre-release` 打包；tag、包文件名、包内版本与 SHA256 分别记录。候选未 push、未发布。此前验收使用的旧版本身份保留在历史记录中。
+本地 0.7 联合候选：共享 Core `0.17.1-rc.2`，VSIX `0.16.2`。预发行 VSIX 在 `npm run build:extension` 后通过 `node tools/package-extension.mjs --pre-release` 打包；tag、包文件名、包内版本与 SHA256 分别记录。RC2 修复编辑器验收对异步文件发现顺序的假设，语言契约不变；RC1 tag 保留。候选未 push、未发布。
 
 TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
