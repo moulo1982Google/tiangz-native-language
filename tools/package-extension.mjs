@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const extensionRoot = path.join(root, "extension");
+const options = process.argv.slice(2);
+if (options.some(option => option !== "--pre-release")) throw new Error("Only --pre-release is supported");
 const manifest = JSON.parse(await readFile(path.join(extensionRoot, "package.json"), "utf8"));
 const output = path.join(root, "dist", `${manifest.name}-${manifest.version}.vsix`);
 await mkdir(path.dirname(output), { recursive: true });
@@ -13,7 +15,7 @@ await mkdir(path.dirname(output), { recursive: true });
 // 通过本仓库锁定的 Node CLI 打包，避免 shell 环境变量语法与空格路径差异。
 // Use the repository's locked Node CLI without shell interpolation or path-space ambiguity.
 const require = createRequire(import.meta.url);
-const result = spawnSync(process.execPath, [require.resolve("@vscode/vsce/vsce"), "package", "--no-dependencies", "--out", output], {
+const result = spawnSync(process.execPath, [require.resolve("@vscode/vsce/vsce"), "package", "--no-dependencies", ...options, "--out", output], {
   cwd: extensionRoot,
   stdio: "inherit",
   windowsHide: true,

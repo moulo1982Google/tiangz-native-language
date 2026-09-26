@@ -1,8 +1,10 @@
 # TiangZ Native Language
 
+本地 0.7 联合候选：共享 Core `0.17.1-rc.1`，VSIX `0.16.1`。预发行 VSIX 在 `npm run build:extension` 后通过 `node tools/package-extension.mjs --pre-release` 打包；tag、包文件名、包内版本与 SHA256 分别记录。候选未 push、未发布。此前验收使用的旧版本身份保留在历史记录中。
+
 TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
-宿主 0.7 兼容工作树继续使用插件自己的版本：当前语言核心 0.17.0、VSIX 0.16.0。`npm run package:extension` 从扩展清单生成 VSIX 文件名，包内 `extension/dist/build-info.json` 记录实际语言核心/扩展版本及运行 bundle 的 SHA-256。该信息用于联合验收，不代表包已发布或已安装；宿主固定依赖的核心版本必须另行核对。
+宿主 0.7 兼容工作树继续使用插件自己的版本：此次开发基线的语言核心为 0.17.0、VSIX 为 0.16.0；当前候选版本见上方。`npm run package:extension` 从扩展清单生成 VSIX 文件名，包内 `extension/dist/build-info.json` 记录实际语言核心/扩展版本及运行 bundle 的 SHA-256。该信息用于联合验收，不代表包已发布或已安装；宿主固定依赖的核心版本必须另行核对。
 
 显式选定已安装依赖的宿主后，执行 `node tools/check-host-compatibility.mjs --engine <宿主工作树>`。该命令比较普通/持久化输出与宿主已安装核心，检查 queued/transactional 不改变 Rust/Host op 生成文本，并用宿主的 TypeScript 与配置编译候选 TS。产物只写本仓库 `dist/host-compatibility`；它不替代 Rust 运行验收，也不修改宿主依赖或 Generated。
 
