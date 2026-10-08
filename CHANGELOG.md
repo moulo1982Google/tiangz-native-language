@@ -1,5 +1,9 @@
 # Changelog
 
+- 修复同时打开多个工程/worktree 时的重复 Entity/typeId 误报和跨工程符号跳转。工作区文件夹拥有独立语义索引，增删文件夹后自动刷新，不增加每工程独立的服务器进程。
+
+- 0.7 联调说明修正：`@queued` 的生成注释、补全与 Hover 区分 DBProxy `backlog.enqueueAck` 的默认 `aof` 和仅内存确认 `memory`，均不等于 PG 提交；不改变语法、Repository 选择或 Core/VSIX 版本号。
+
 ## 0.17.0 Core / 0.16.0 Extension
 
 - 新增持久化写法标记`@queued`与`@transactional`，须与`@persistent`同用且互斥。`@queued`只生成排队写入仓库，`@transactional`只生成事务写入仓库；同一记录不能混用排队写和带版本校验的写入。

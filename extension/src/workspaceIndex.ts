@@ -49,11 +49,26 @@ export class NativeWorkspaceIndex {
   private lastValidationMs = 0;
   private maxValidationMs = 0;
   private lastModel: NativeSemanticModel = { entities: [], operations: [] };
+  private workspaceRoots: readonly string[] = [];
+  private readonly models = new Map<string, NativeSemanticModel>();
 
   public constructor(private limits: WorkspaceLimits) {}
 
   public setLimits(limits: WorkspaceLimits): void {
     this.limits = limits;
+  }
+
+  /** 每个工作区文件夹拥有独立的符号/typeId，嵌套根按最长匹配。 / Each workspace folder owns symbols and type IDs; nested roots use the longest match. */
+  public setWorkspaceFolders(uris: readonly string[]): void {
+    this.workspaceRoots = [...new Set(uris.map(normalizeUri))].sort((left, right) => right.length - left.length);
+    this.models.clear();
+    this.lastModel = { entities: [], operations: [] };
+  }
+
+  private owner(uri: string): string {
+    if (this.workspaceRoots.length === 0) return "";
+    const candidate = normalizeUri(uri);
+    return this.workspaceRoots.find(root => candidate === root || candidate.startsWith(`${root}/`)) ?? candidate;
   }
 
   public update(uri: string, text: string, version?: number): boolean {
@@ -115,24 +130,38 @@ export class NativeWorkspaceIndex {
     return this.entries.get(uri)?.document;
   }
 
-  public getDocuments(): readonly NativeDocument[] {
-    return [...this.entries.values()].flatMap((entry) => entry.document ? [entry.document] : []);
+  public getDocuments(uri?: string): readonly NativeDocument[] {
+    const owner = uri === undefined ? undefined : this.owner(uri);
+    return [...this.entries.entries()].flatMap(([candidate, entry]) =>
+      entry.document && (owner === undefined || this.owner(candidate) === owner) ? [entry.document] : []);
   }
 
   public getUris(): readonly string[] {
     return [...this.entries.keys()];
   }
 
-  public getModel(): NativeSemanticModel {
-    return this.lastModel;
+  public getModel(uri?: string): NativeSemanticModel {
+    return uri === undefined ? this.lastModel : this.models.get(this.owner(uri)) ?? { entities: [], operations: [] };
   }
 
   public validate(): ValidationSnapshot {
     const startedAt = performance.now();
-    const analysis = analyzeNativeDocuments(this.getDocuments());
+    const projects = new Map<string, NativeDocument[]>();
+    for (const document of this.getDocuments()) {
+      const owner = this.owner(document.uri);
+      const files = projects.get(owner) ?? [];
+      files.push(document);
+      projects.set(owner, files);
+    }
+    this.models.clear();
+    const analyses = [...projects].map(([owner, files]) => {
+      const analysis = analyzeNativeDocuments(files);
+      this.models.set(owner, analysis.model);
+      return analysis;
+    });
     const grouped = new Map<string, NativeDiagnostic[]>();
     for (const uri of this.entries.keys()) grouped.set(uri, []);
-    for (const diagnostic of analysis.diagnostics) pushDiagnostic(grouped, diagnostic);
+    for (const analysis of analyses) for (const diagnostic of analysis.diagnostics) pushDiagnostic(grouped, diagnostic);
     for (const entry of this.entries.values()) {
       for (const diagnostic of entry.localDiagnostics) pushDiagnostic(grouped, diagnostic);
     }
@@ -152,10 +181,13 @@ export class NativeWorkspaceIndex {
     this.lastValidationMs = performance.now() - startedAt;
     this.maxValidationMs = Math.max(this.maxValidationMs, this.lastValidationMs);
     this.validationCount += 1;
-    this.lastModel = analysis.model;
+    this.lastModel = {
+      entities: analyses.flatMap(analysis => analysis.model.entities),
+      operations: analyses.flatMap(analysis => analysis.model.operations),
+    };
     return {
       diagnosticsByUri: grouped,
-      model: analysis.model,
+      model: this.lastModel,
       stats: this.getStats(),
     };
   }
@@ -175,8 +207,14 @@ export class NativeWorkspaceIndex {
 
   public clear(): void {
     this.entries.clear();
+    this.models.clear();
     this.lastModel = { entities: [], operations: [] };
   }
+}
+
+function normalizeUri(uri: string): string {
+  const normalized = uri.replace(/\/+$/, "");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
 function pushDiagnostic(grouped: Map<string, NativeDiagnostic[]>, diagnostic: NativeDiagnostic): void {

@@ -269,6 +269,53 @@ async function closeUntitled(rpc, uri) {
   await cleared;
 }
 
+test("multi-root diagnostics, hover, navigation and typeId fixes stay with the requesting worktree", async () => {
+  const rpc = new StdioRpc(serverPath);
+  try {
+    const roots = ["file:///workspace/candidate", "file:///workspace/baseline"];
+    const uris = roots.map(root => root + "/native_data/Entity.native");
+    await rpc.request("initialize", { processId: null, rootUri: null, capabilities: {},
+      workspaceFolders: roots.map((uri, number) => ({ uri, name: `tree-${number}` })),
+      initializationOptions: { validationDebounceMs: 20, sourceRootUris: roots.map(root => root + "/native_data") } });
+    rpc.notify("initialized", {});
+    const source = (number) => `namespace demo;\nabstract entity Entity { readonly id: u32; readonly instanceId: u32; }\n@typeId(42) entity Unit extends Entity { value${number}: u32 = 0; }\n`;
+    const pending = uris.map(uri => rpc.waitForNotification("textDocument/publishDiagnostics", params => params.uri === uri));
+    for (const [number, uri] of uris.entries()) rpc.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId: "tiangz-native", version: 1, text: source(number) } });
+    for (const result of await Promise.all(pending)) assert.deepEqual(result.diagnostics, []);
+    for (const [number, uri] of uris.entries()) {
+      const parentOffset = source(number).split("\n")[2].lastIndexOf("Entity") + 2;
+      const hover = await rpc.request("textDocument/hover", { textDocument: { uri }, position: { line: 2, character: parentOffset } });
+      assert.ok(hover.contents.value.includes(uri), "parent hover must use this worktree's declaration");
+      assert.ok(!hover.contents.value.includes(uris[1 - number]));
+      const definition = await rpc.request("textDocument/definition", { textDocument: { uri }, position: { line: 2, character: parentOffset } });
+      assert.equal(definition.uri, uri);
+      const references = await rpc.request("textDocument/references", { textDocument: { uri }, position: { line: 2, character: parentOffset }, context: { includeDeclaration: true } });
+      assert.equal(references.length, 2);
+      assert.ok(references.every(item => item.uri === uri));
+    }
+    const other = roots[1] + "/native_data/Other.native";
+    const otherPublished = rpc.waitForNotification("textDocument/publishDiagnostics", params => params.uri === other);
+    rpc.notify("textDocument/didOpen", { textDocument: { uri: other, languageId: "tiangz-native", version: 1,
+      text: "namespace demo; @typeId(1) entity OnlyBaseline extends Entity {}" } });
+    assert.deepEqual((await otherPublished).diagnostics, []);
+    const draft = roots[0] + "/native_data/Draft.native";
+    const published = rpc.waitForNotification("textDocument/publishDiagnostics", params => params.uri === draft);
+    rpc.notify("textDocument/didOpen", { textDocument: { uri: draft, languageId: "tiangz-native", version: 1,
+      text: "namespace demo; entity Draft extends Entity {}" } });
+    const missing = (await published).diagnostics.find(item => item.code === "native.semantic.type-id-required");
+    assert.ok(missing);
+    const fixes = await rpc.request("textDocument/codeAction", { textDocument: { uri: draft }, range: missing.range,
+      context: { diagnostics: [missing], only: ["quickfix"] } });
+    assert.equal(fixes.length, 1);
+    assert.ok(JSON.stringify(fixes[0].edit).includes("@typeId(1)"), "another worktree's ID must not consume this project's ID");
+    const completion = await rpc.request("textDocument/completion", { textDocument: { uri: draft }, position: { line: 0, character: 36 } });
+    assert.ok(!completion.some(item => item.label === "OnlyBaseline"));
+    await rpc.request("shutdown", null); rpc.notify("exit", null);
+    assert.equal(await rpc.waitForExit(), 0);
+  } finally { rpc.dispose(); }
+});
+
 class StdioRpc {
   #child;
   #buffer = Buffer.alloc(0);

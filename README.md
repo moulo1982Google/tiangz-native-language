@@ -1,6 +1,14 @@
+> 本轮发布：`v0.7.0-rc1`，从 `feat/v0.7` 合入主线的预发行版本。历史 RC 标签、测试资格和制品保持原身份；本次发布后验证计划见 [RELEASE-v0.7.0-rc1.md](RELEASE-v0.7.0-rc1.md)。
+
 # TiangZ Native Language
 
+本地 0.7 联合候选：共享 Core `0.17.1-rc.2`，VSIX `0.16.2`。预发行 VSIX 在 `npm run build:extension` 后通过 `node tools/package-extension.mjs --pre-release` 打包；tag、包文件名、包内版本与 SHA256 分别记录。RC2 修复编辑器验收对异步文件发现顺序的假设，语言契约不变；RC1 tag 保留。候选未 push、未发布。
+
 TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
+
+宿主 0.7 兼容工作树继续使用插件自己的版本：此次开发基线的语言核心为 0.17.0、VSIX 为 0.16.0；当前候选版本见上方。`npm run package:extension` 从扩展清单生成 VSIX 文件名，包内 `extension/dist/build-info.json` 记录实际语言核心/扩展版本及运行 bundle 的 SHA-256。该信息用于联合验收，不代表包已发布或已安装；宿主固定依赖的核心版本必须另行核对。
+
+显式选定已安装依赖的宿主后，执行 `node tools/check-host-compatibility.mjs --engine <宿主工作树>`。该命令比较普通/持久化输出与宿主已安装核心，检查 queued/transactional 不改变 Rust/Host op 生成文本，并用宿主的 TypeScript 与配置编译候选 TS。产物只写本仓库 `dist/host-compatibility`；它不替代 Rust 运行验收，也不修改宿主依赖或 Generated。
 
 仓库目标不是只给关键字上色，而是让 TiangZ codegen 与编辑器共用同一套 Parser、AST 和 Validator，避免两套语法实现发生偏差。
 
@@ -26,6 +34,8 @@ TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 - Entity、字段和 Native op 的详细中文 Hover，包括真实 Rust/TypeScript 生成符号与访问链路
 - 根据 `@component` 自动区分 Component 生命周期与独立 handle 生命周期的 Hover 示例
 - 有界缓存、输入限制与性能回归测试
+
+一个 VS Code 窗口可以同时打开多个独立工程或 Git worktree。语言服务按所属工作区文件夹分别校验 Entity、op 与 typeId；Hover、补全、定义、引用和编号修复也使用同一作用域。嵌套工作区采用最长路径匹配，工作区外打开的文件独立校验。同一工程的重复符号仍报错。增删文件夹后自动重建索引和文件监听，保持单个语言服务器与总扫描上限；自定义 codegen 始终使用当前文件所属工程。
 
 TiangZ 主仓库固定依赖对应 Tag；`codegen_native_data` 只负责扫描、落盘和 `rustfmt`，全部 Rust/TypeScript 内容由共享 codegen-core 生成。
 
@@ -62,10 +72,12 @@ entity Item extends Entity {
 | 标记 | 生成的写入方法 | 适合 |
 | --- | --- | --- |
 | 不加 | `Save`、`TransactionWrite` | 普通数据；可直接保存，也可加入事务 |
-| `@queued` | `Enqueue` | 位置、普通进度等允许小范围回退的数据；Redis AOF确认后异步落PG |
+| `@queued` | `Enqueue` | 位置、普通进度等允许小范围回退的数据；按 DBProxy 部署的确认档位接收后异步落 PG，不代表 PG 已提交 |
 | `@transactional` | `TransactionWrite` | 货币、背包等只能随事务回执修改的数据 |
 
-`@queued`与`@transactional`互斥，且必须与`@persistent`同用。排队写不带版本校验，落库时直接覆盖；同一记录一旦混用排队写和带版本校验的写入，迟到的排队数据可能覆盖已确认的新数据，所以一个记录只允许一种写法。开发期更换写法前应排空DBProxy排队积压或清库。
+`@queued`与`@transactional`互斥，且必须与`@persistent`同用。排队写不带版本校验，落库时直接覆盖；同一记录一旦混用排队写和带版本校验的写入，迟到的排队数据可能覆盖已确认的新数据，所以一个记录只允许一种写法。更换生产记录的写法需要明确的停写、积压处理与数据迁移方案；排空积压本身不是完整迁移，清库不是生产迁移路径。
+
+`@queued` 不选择持久性档位。DBProxy 的 `postgresRedis` 后端由部署配置 `backlog.enqueueAck` 统一决定：默认 `aof` 等 Redis 本地 AOF 落盘，`memory` 写入 Redis 内存即确认，Redis 崩溃可能丢失尚未落盘的已确认入队。两档都不表示 PostgreSQL 已提交，成功响应也不携带档位；业务必须核对部署契约。测试用 `memory` 存储后端是另一项设置，只保存在进程内，不提供持久性。
 
 ```native
 @typeId(10)

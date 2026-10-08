@@ -821,7 +821,7 @@ function persistenceRepository(entity: NativeEntityModel): { readonly className:
     case "queued":
       return {
         className: "DbProxyQueuedEntityRepository",
-        documentation: "/** @queued：只能排队写入，Redis AOF确认后由DBProxy异步落PG；不能直接保存或加入事务，崩溃或换服后可能回退到最近落库状态。 / @queued: queued writes only, acknowledged by Redis AOF and persisted to PG asynchronously; no direct saves or transactions, and crashes or ownership moves may roll back to the last persisted state. */",
+        documentation: "/** @queued：只能排队写入；DBProxy backlog.enqueueAck 决定确认档位（默认 aof 等本地落盘，memory 仅确认 Redis 内存），不代表 PG 已提交。不能直接保存或加入事务，崩溃或换服后可能回退。 / @queued: queued writes only; DBProxy backlog.enqueueAck selects acknowledgement (default aof waits for local fsync, memory acknowledges Redis memory only), not a PG commit. No direct saves or transactions; crashes or ownership moves may roll back state. */",
       };
     case "transactional":
       return {

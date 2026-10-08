@@ -18,6 +18,32 @@ abstract entity Entity {
 }
 `;
 
+test("isolates symbols and type IDs across sibling and nested workspace folders", () => {
+  const index = new NativeWorkspaceIndex(limits);
+  const roots = ["file:///tree", "file:///tree-next", "file:///tree/nested"];
+  index.setWorkspaceFolders(roots);
+  for (const [number, root] of roots.entries()) {
+    index.update(root + "/Entity.native", rootSource + `@typeId(42) entity Unit extends Entity { value${number}: u32 = 0; }`);
+  }
+  const first = index.validate();
+  assert.equal([...first.diagnosticsByUri.values()].flat().length, 0);
+  assert.equal(first.stats.entityCount, 6);
+  for (const [number, root] of roots.entries()) {
+    const model = index.getModel(root + "/Test.native");
+    assert.equal(model.entities.length, 2);
+    assert.equal(model.entities.find(entity => entity.name === "Unit").fields[0].name, `value${number}`);
+    assert.deepEqual(index.getDocuments(root + "/Test.native").map(file => file.uri), [root + "/Entity.native"]);
+  }
+  index.update("file:///tree/Collision.native", "namespace demo; @typeId(42) entity Collision extends Entity {}");
+  const collision = index.validate();
+  assert.ok(collision.diagnosticsByUri.get("file:///tree/Collision.native").some(item => item.code === "native.semantic.duplicate-type-id"));
+  assert.deepEqual(collision.diagnosticsByUri.get("file:///tree-next/Entity.native"), []);
+  assert.equal(index.getModel("untitled:Unsaved.native").entities.length, 0, "unowned files cannot guess another project's schema");
+  index.clear();
+  assert.equal(index.getStats().cachedFiles, 0);
+  assert.equal(index.getModel("file:///tree/Test.native").entities.length, 0);
+});
+
 test("keeps one bounded cache entry per URI across repeated updates", (context) => {
   const index = new NativeWorkspaceIndex(limits);
   index.update("file:///Entity.native", rootSource, 1);
