@@ -1,8 +1,8 @@
-> 本轮发布：`v0.7.0-rc2`，六仓库统一套件标签的预发行版本；本仓库相对 rc1 无代码改动，包版本不变。rc1 标签与制品保持原身份，说明见 [RELEASE-v0.7.0-rc2.md](RELEASE-v0.7.0-rc2.md)。
+> 本轮发布：套件 TiangZ 0.7.0 正式版，本仓库标签 `v0.17.1`（仓库内已有的 `v0.7.0` 是 2026-07 的旧包版本，保持不动）。相对 v0.7.0-rc2 无代码改动；说明见 [RELEASE-v0.17.1.md](RELEASE-v0.17.1.md)。
 
 # TiangZ Native Language
 
-本地 0.7 联合候选：共享 Core `0.17.1-rc.2`，VSIX `0.16.2`。预发行 VSIX 在 `npm run build:extension` 后通过 `node tools/package-extension.mjs --pre-release` 打包；tag、包文件名、包内版本与 SHA256 分别记录。RC2 修复编辑器验收对异步文件发现顺序的假设，语言契约不变；RC1 tag 保留。候选未 push、未发布。
+当前版本：共享 Core `0.17.1`，VSIX `0.16.3`（正式版，非预发行；0.16.2 是 rc1 的预发行包）。VSIX 在 `npm run build:extension` 后通过 `npm run package:extension` 打包；tag、包文件名、包内版本与 SHA256 分别记录。RC1/RC2 tag 保留。
 
 TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
