@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.2 Core / 0.16.4 Extension（套件 TiangZ 0.7.1，标签 `v0.17.2`，2026-10-08）
+
+- 开发与打包依赖：`npm audit fix` 与 `@vscode/vsce` ^4.0.0，`npm audit`（全部与生产）由 10 high + 2 moderate 降为 0。vsce 4 要求 Node ≥ 22。
+- Core 与 VSIX 功能不变；VSIX 文件清单与清单文件和 0.16.3 一致。
+
 ## 0.17.1 Core / 0.16.3 Extension（正式版，套件 TiangZ 0.7.0，标签 `v0.17.1`，2026-10-08）
 
 - 内容与 0.17.1-rc.2（套件 v0.7.0-rc1/rc2）相同，只去掉预发行后缀；VSIX 由 0.16.2 预发行包改为 0.16.3 正式包（同一版本号不对应两个不同文件）。下面两条随本版本正式发布。
