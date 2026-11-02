@@ -1,8 +1,8 @@
-> 本轮发布：套件 TiangZ 0.7.1，本仓库标签 `v0.17.2`。开发与打包依赖审计清零（vsce 4），Core 与 VSIX 功能不变；说明见 [RELEASE-v0.17.2.md](RELEASE-v0.17.2.md)。
+> 本轮发布：套件 TiangZ 0.7.8，本仓库标签 `v0.17.3`。开发与打包依赖安全补丁（`@azure/identity` 4.14.1），审计高危清零；Core 与 VSIX 功能不变；说明见 [RELEASE-v0.17.3.md](RELEASE-v0.17.3.md)。
 
 # TiangZ Native Language
 
-当前版本：共享 Core `0.17.2`，VSIX `0.16.4`（正式版，非预发行）。VSIX 在 `npm run build:extension` 后通过 `npm run package:extension` 打包（vsce 4，要求 Node ≥ 22）；tag、包文件名、包内版本与 SHA256 分别记录。RC1/RC2 tag 保留。
+当前版本：共享 Core `0.17.3`，VSIX `0.16.5`（正式版，非预发行）。VSIX 在 `npm run build:extension` 后通过 `npm run package:extension` 打包（vsce 4，要求 Node ≥ 22）；tag、包文件名、包内版本与 SHA256 分别记录。RC1/RC2 tag 保留。
 
 TiangZ `.native` 领域语言的编辑器工具与共享语言核心。
 
