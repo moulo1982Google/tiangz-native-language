@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.3 Core / 0.16.5 Extension（套件 TiangZ 0.7.8，标签 `v0.17.3`）
+
+- 开发与打包依赖安全补丁：`@vscode/vsce` 4.1.0 带入的 `@azure/identity` 4.14.1、`@azure/msal-node` 7.1.2。审计：全部 0 high / 3 moderate，生产 0。剩余 3 项为 `minimatch` 中危（经 `vscode-languageclient`、`@vscode/vsce`），上游暂无修复版本。
+- 随包的 `vscode-languageclient` 由 10.1.0 升到 10.1.2（补丁版本），扩展打包文件因此变化，VSIX 升到 0.16.5；文件清单与 0.16.4 相同，功能不变。
+
 ## 0.17.2 Core / 0.16.4 Extension（套件 TiangZ 0.7.1，标签 `v0.17.2`，2026-10-08）
 
 - 开发与打包依赖：`npm audit fix` 与 `@vscode/vsce` ^4.0.0，`npm audit`（全部与生产）由 10 high + 2 moderate 降为 0。vsce 4 要求 Node ≥ 22。
